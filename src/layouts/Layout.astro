@@ -1,0 +1,25 @@
+---
+import '@/styles/global.css';
+import DocumentHead from '@/components/DocumentHead.astro';
+import Avatar from '@/components/Avatar.astro';
+import { Compass, Library, Trophy, CodeXml, BookOpen, ArrowUpRight, Search, ChevronDown, Shield, Orbit, Server } from '@lucide/astro';
+import { admin } from '@/lib/security';
+import OneTap from '@/components/OneTap.astro';
+const { title = 'Tu próximo juego empieza acá', description = 'Jugá, conectá y construí. La plataforma de juegos de SaltoUruguayServer.', preloadImage } = Astro.props;
+const player = Astro.locals.player;
+const path = Astro.url.pathname;
+const developerArea = path.startsWith('/developers') || path.startsWith('/docs');
+const nav = [{ href: '/', text: 'Descubrir', icon: Compass }, { href: '/biblioteca', text: 'Mi biblioteca', icon: Library }, { href: '/servidores', text: 'Servidores', icon: Server }, { href: '/logros', text: 'Mis logros', icon: Trophy }, { href: '/perfil', text: 'Mi SaltoTag', icon: Orbit }];
+---
+<!doctype html><html lang="es-UY" data-theme="dark"><head>
+  <DocumentHead title={title} description={description} preloadImage={preloadImage} />
+</head>
+<body><a href="#contenido" class="sr-only focus:not-sr-only">Saltar al contenido</a><div class="shell">
+  <aside class="sidebar"><a class="brand" href="/" aria-label="SaltoPlay inicio"><img class="brand-logo" src="/brand/sus.svg" alt="" width="45" height="53" /><strong class="brand-name">salto<em>play</em></strong></a>
+    <div class="nav-label">Tu espacio de juego</div><nav aria-label="Principal">{nav.map(({ href, text, icon: Icon }) => <a href={href} class:list={['nav-link', { active: href === '/' ? path === '/' || path.startsWith('/juegos') || path.startsWith('/jugar') : path.startsWith(href) }]} aria-current={path === href ? 'page' : undefined}><Icon /><span>{text}</span></a>)}</nav>
+    <div class="secondary-nav">{developerArea && <><div class="nav-label">Herramientas</div><a href="/developers" class:list={['nav-link', { active: path.startsWith('/developers') }]}><CodeXml />Desarrolladores</a><a href="/docs" class:list={['nav-link', { active: path.startsWith('/docs') }]}><BookOpen />Documentación</a></>}{player && admin(player) && <a class:list={['nav-link mt-7', { active: path.startsWith('/admin') }]} href="/admin"><Shield />Administración</a>}</div>
+    <div class="sidebar-bottom"><a href="https://saltouruguayserver.com" class="flex items-center justify-between gap-2 px-2 text-[10px] text-[#8b809a]">Parte de SaltoUruguayServer <ArrowUpRight size={12} /></a></div>
+  </aside>
+  <div class="main-shell"><header class="topbar"><a href="/" class="mobile-brand" aria-label="SaltoPlay inicio"><img src="/brand/sus.svg" alt="" width="30" height="36" /></a><form action="/juegos" class="searchbox" role="search"><Search size={17} /><label class="sr-only" for="search">Buscar juegos</label><input id="search" name="q" placeholder="Buscá tu próximo juego…" value={Astro.url.searchParams.get('q') || ''} /><span class="key">/</span></form><div class="flex items-center gap-4">{player ? <a href="/ajustes" class="flex items-center gap-3 text-xs"><Avatar src={player.avatar} name={player.displayName} /><span class="hidden sm:block"><span class="block">{player.displayName}</span><span class="mt-1 block text-[10px] text-[#93889f]">{player.tag}</span></span><ChevronDown size={12} /></a> : <a class="btn btn-secondary" href="/acceso">Ingresar <ArrowUpRight size={14} /></a>}</div></header>
+  <main id="contenido" class="content"><slot /><footer class="footer"><span>© {new Date().getFullYear()} SaltoPlay · SaltoUruguayServer.</span><div class="flex gap-5"><a href="/docs/privacidad">Privacidad</a><a href="/docs/terminos">Términos</a><a href="/developers">Desarrolladores</a><a href="/docs">Documentación</a></div></footer></main></div>
+</div><OneTap /><script>document.addEventListener('keydown', (e) => { if (e.key === '/' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) { e.preventDefault(); document.querySelector<HTMLInputElement>('#search')?.focus(); } });</script></body></html>

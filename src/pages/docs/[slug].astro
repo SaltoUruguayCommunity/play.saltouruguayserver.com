@@ -1,0 +1,7 @@
+---
+import Docs from '@/components/Docs.astro';
+import { documents } from '@/lib/docs';
+const slug = Astro.params.slug!;
+if (!Object.hasOwn(documents, slug)) return Astro.redirect('/404');
+---
+<Docs slug={slug} />

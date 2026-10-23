@@ -1,0 +1,6 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { Orbit } from '@lucide/astro';
+Astro.response.status = 404;
+---
+<Layout title="Fuera de órbita"><div class="panel empty"><Orbit /><div class="eyebrow mb-4">Error 404</div><h1 class="page-title">Parece que salimos de órbita.</h1><p>La página que buscás no está disponible. Volvé al inicio para encontrar tu próxima partida.</p><a href="/" class="btn btn-primary">Volver a descubrir</a></div></Layout>

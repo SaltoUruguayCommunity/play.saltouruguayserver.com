@@ -1,0 +1,55 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { db } from '@/db';
+import { games, achievements, clients, builds } from '@/db/schema';
+import { and, eq, desc } from 'drizzle-orm';
+import { z } from 'zod';
+import { ArrowLeft, Send, Upload, KeyRound, Trophy, Box } from '@lucide/astro';
+const player = Astro.locals.player;
+if (!player) return Astro.redirect('/acceso?returnTo=/developers');
+const id = z.uuid().safeParse(Astro.params.id); if (!id.success) return Astro.redirect('/404');
+const [game] = await db().select().from(games).where(and(eq(games.id, id.data), eq(games.ownerId, player.id)));
+if (!game) return Astro.redirect('/404');
+const [gameAchievements, gameClients, gameBuilds] = await Promise.all([db().select().from(achievements).where(eq(achievements.gameId, game.id)), db().select({ id: clients.id, name: clients.name, redirectUris: clients.redirectUris, secretHash: clients.secretHash }).from(clients).where(eq(clients.gameId, game.id)), db().select().from(builds).where(eq(builds.gameId, game.id)).orderBy(desc(builds.createdAt))]);
+const editable = game.status === 'draft';
+---
+<Layout title={`${game.title} · Consola`}><a href="/developers" class="mb-6 inline-flex items-center gap-2 text-xs text-violet"><ArrowLeft size={14} />Mis juegos</a><div class="mb-7 flex flex-wrap items-center justify-between gap-4"><div><span class="eyebrow">Consola del juego · {game.type}</span><h1 class="page-title mt-3">{game.title}</h1></div><span class="badge badge-violet">{{ draft: 'Borrador privado', review: 'En revisión', published: 'Publicado', suspended: 'Suspendido' }[game.status]}</span></div><div id="feedback" class="notice mb-6" role="status" hidden></div><div id="credentials" class="panel mb-6" hidden><h2 class="text-lg">Guardá tus credenciales.</h2><p class="muted my-3 text-xs">El secreto sólo se muestra una vez. Usalo únicamente en tu servidor.</p><pre id="credential-value"></pre></div><div class="two-col"><div class="space-y-6"><form class="panel api-form" method="post" action={`/api/developer/${game.id}`}><h2 class="mb-6 text-xl">Acerca del juego</h2><input type="hidden" name="action" value="update" /><label class="field">Nombre<input name="title" value={game.title} required minlength="2" maxlength="80" disabled={!editable} /></label><label class="field">Descripción<textarea name="description" required minlength="20" maxlength="3000" disabled={!editable}>{game.description}</textarea></label>{game.type === 'external' && <label class="field">Dirección del juego<input name="url" type="url" value={game.url || ''} placeholder="https://tu-juego.com" required disabled={!editable} /></label>}<button class="btn btn-primary" disabled={!editable}>Guardar cambios</button></form>
+{game.type === 'hosted' && <section class="panel"><div class="mb-5 flex items-center gap-3"><Box class="text-violet" size={20} /><h2 class="text-xl">Distribuciones web</h2></div><p class="muted mb-5 text-xs leading-6">Subí un ZIP con index.html en la raíz. HTML, JS, CSS, WASM y assets estáticos. Hasta 25 MB comprimidos, 100 MB descomprimidos y 1500 archivos. Usá rutas relativas para tus assets.</p>{gameBuilds.map(build => <div class="mb-3 flex flex-wrap justify-between gap-2 rounded-lg border border-white/10 p-4"><div><span class="font-mono text-[10px]">{build.id.slice(0, 8)}</span><p class="muted mt-1 text-[10px]">{build.fileCount} archivos · {(build.bytes / 1024 / 1024).toFixed(1)} MB</p></div><span class="badge">{build.status}</span></div>)}<form class="api-form mt-5" method="post" action={`/api/developer/${game.id}/upload`} enctype="multipart/form-data"><label class="field">Paquete del juego<input type="file" name="package" accept=".zip,application/zip" required disabled={!editable} /></label><button class="btn btn-secondary" disabled={!editable}><Upload />Subir distribución</button></form></section>}
+<section class="panel"><div class="mb-5 flex items-center gap-3"><Trophy class="text-violet" size={20} /><h2 class="text-xl">Logros</h2></div>{gameAchievements.length ? gameAchievements.map(a => <div class="mb-3 flex items-center justify-between border-b border-white/5 pb-3"><div><h3 class="text-sm">{a.title}</h3><span class="muted font-mono text-[10px]">{a.key}</span></div><span class="badge">Casual · 0 XP</span></div>) : <p class="muted mb-5 text-xs">Definí el primer desafío de tu juego.</p>}<form class="api-form mt-5" method="post" action={`/api/developer/${game.id}`}><input type="hidden" name="action" value="achievement" /><label class="field">Clave<input name="key" placeholder="first-win" pattern="[a-z0-9-]{2,80}" required disabled={!editable} /></label><label class="field">Nombre<input name="title" placeholder="La primera victoria" required maxlength="80" disabled={!editable} /></label><label class="field">Descripción<input name="description" placeholder="Ganaste tu primera partida." required maxlength="300" disabled={!editable} /></label><button class="btn btn-secondary" disabled={!editable}>Crear logro casual</button></form><p class="muted mt-4 text-[10px] leading-6">Los logros declarados por el navegador no otorgan XP global. Los logros verificados requieren una política de validación de servidor.</p></section>
+<section class="panel"><div class="mb-5 flex items-center gap-3"><KeyRound class="text-violet" size={20} /><h2 class="text-xl">Clientes OAuth</h2></div>{gameClients.map(client => <div class="mb-4 rounded-lg border border-white/10 p-4"><h3 class="text-sm">{client.name} <span class="muted text-[10px]">· {client.secretHash ? 'Confidencial' : 'Público'}</span></h3><p class="mt-2 break-all font-mono text-[10px] text-violet">{client.id}</p><p class="muted mt-2 break-all text-[10px]">{client.redirectUris.join(', ')}</p></div>)}<form class="api-form mt-5" method="post" action={`/api/developer/${game.id}`}><input type="hidden" name="action" value="client" /><label class="field">Nombre del cliente<input name="name" placeholder="Mi juego · Producción" required maxlength="80" /></label><label class="field">Callback exacto<input name="redirectUri" type="url" placeholder="https://tu-juego.com/callback" required /></label><label class="field">Tipo<select name="kind"><option value="public">Público — Navegador / móvil (PKCE)</option><option value="confidential">Confidencial — Backend con secreto</option></select></label><button class="btn btn-secondary">Crear cliente OAuth</button></form></section></div><aside class="space-y-5"><div class="panel"><h2 class="text-lg">Publicación</h2><p class="muted my-4 text-xs leading-7">{editable ? 'Cuando esté todo listo, envialo a revisión. La publicación requiere aprobación del administrador.' : 'El juego está bloqueado para edición mientras se revisa o está publicado.'}</p><form class="api-form" action={`/api/developer/${game.id}`} method="post"><input type="hidden" name="action" value="review" /><button class="btn btn-primary w-full" disabled={!editable}><Send size={15} />Enviar a revisión</button></form></div><div class="panel"><span class="eyebrow">Integración</span><h2 class="mt-4 text-lg">Hacé la conexión.</h2><p class="muted my-4 text-xs leading-7">Usá el SDK para conectar la identidad del jugador y conservar el progreso.</p><a href={game.type === 'hosted' ? '/docs/hosted' : '/docs/oauth'} class="text-xs text-violet">Guía de integración →</a></div></aside></div></Layout>
+<script>
+  document.querySelectorAll<HTMLFormElement>('.api-form').forEach(form => {
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = form.querySelector('button')!;
+      const feedback = document.getElementById('feedback')!;
+      button.disabled = true;
+      feedback.hidden = true;
+      try {
+        // A control named "action" shadows form.action with an HTMLInputElement.
+        const endpoint = form.getAttribute('action');
+        if (!endpoint) throw new Error('El formulario no tiene un destino configurado.');
+        const response = await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+        if (!response.headers.get('content-type')?.includes('application/json')) {
+          throw new Error('No pudimos procesar la solicitud. Recargá la página e intentá de nuevo.');
+        }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || data.error);
+        if (data.secret) {
+          document.getElementById('credentials')!.hidden = false;
+          document.getElementById('credential-value')!.textContent = `Client ID: ${data.clientId}\nClient secret: ${data.secret}`;
+          feedback.textContent = 'Cliente creado. Copiá el secreto antes de salir de esta página.';
+          feedback.hidden = false;
+          button.disabled = false;
+        } else {
+          location.reload();
+        }
+      } catch (error) {
+        feedback.textContent = error instanceof Error ? error.message : 'Error de conexión';
+        feedback.hidden = false;
+        feedback.scrollIntoView({ block: 'center' });
+        button.disabled = false;
+      }
+    });
+  });
+</script>

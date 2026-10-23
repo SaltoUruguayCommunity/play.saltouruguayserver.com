@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792725208798,
+      "tag": "0000_boring_kabuki",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792726217884,
+      "tag": "0001_inherit-admin-role",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792746518789,
+      "tag": "0002_community-servers",
+      "breakpoints": true
+    }
+  ]
+}

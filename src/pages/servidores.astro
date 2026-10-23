@@ -1,0 +1,8 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import ServerCard from '@/components/ServerCard.astro';
+import { listServers } from '@/lib/community-servers';
+import { Server } from '@lucide/astro';
+const servers = await listServers();
+---
+<Layout title="Servidores y series"><div class="eyebrow mb-3">Jugamos en comunidad</div><h1 class="page-title">Nos vemos adentro.</h1><p class="muted max-w-xl text-xs leading-6">Los servidores y las series de SaltoUruguayServer, con todo lo que necesitás para sumarte.</p>{servers.length ? <div class="server-grid mt-8">{servers.map(server => <ServerCard server={server} />)}</div> : <div class="panel empty mt-8"><Server /><h2 class="text-xl">La próxima aventura está por llegar.</h2><p>Cuando haya una serie o un servidor disponible, vas a encontrar acá cómo participar.</p><a href="/juegos" class="btn btn-primary">Explorar juegos</a></div>}<p class="mt-6 text-[10px] leading-6 text-[#84788f]">Los estados indican la situación de cada serie. No representan una comprobación de conexión del servidor en tiempo real.</p></Layout>

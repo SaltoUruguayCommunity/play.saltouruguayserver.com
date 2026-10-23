@@ -1,0 +1,51 @@
+$ astro check
+00:14:01 [@astrojs/node] Enabling sessions with filesystem storage
+00:14:02 [types] Generated 316ms
+00:14:02 [check] Getting diagnostics for Astro files in C:\Users\alexb\Dev\play.saltouruguayserver.com...
+[96mpublic/runtime/demo/game.js[0m:[93m7[0m:[93m332[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m7[0m document.getElementById('restore').addEventListener('click', async () => { try { if (!play) return; const data = await play.saves.get('slot-1'); if (!data) { status.textContent = 'Todavía no guardaste una partida.'; return; } score = data.score; update(); status.textContent = 'Guardado recuperado desde SaltoPlay.'; } catch (e) { status.textContent = e.message; } });
+[7m [0m [93m                                                                                                                                                                                                                                                                                                                                           ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m7[0m:[93m257[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m7[0m document.getElementById('restore').addEventListener('click', async () => { try { if (!play) return; const data = await play.saves.get('slot-1'); if (!data) { status.textContent = 'Todavía no guardaste una partida.'; return; } score = data.score; update(); status.textContent = 'Guardado recuperado desde SaltoPlay.'; } catch (e) { status.textContent = e.message; } });
+[7m [0m [93m                                                                                                                                                                                                                                                                ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m7[0m:[93m159[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m7[0m document.getElementById('restore').addEventListener('click', async () => { try { if (!play) return; const data = await play.saves.get('slot-1'); if (!data) { status.textContent = 'Todavía no guardaste una partida.'; return; } score = data.score; update(); status.textContent = 'Guardado recuperado desde SaltoPlay.'; } catch (e) { status.textContent = e.message; } });
+[7m [0m [93m                                                                                                                                                              ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m6[0m:[93m218[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m6[0m document.getElementById('save').addEventListener('click', async () => { try { if (!play) return; await play.saves.set('slot-1', { score }); status.textContent = 'Progreso guardado a través del bridge.'; } catch (e) { status.textContent = e.message; } });
+[7m [0m [93m                                                                                                                                                                                                                         ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m6[0m:[93m141[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m6[0m document.getElementById('save').addEventListener('click', async () => { try { if (!play) return; await play.saves.set('slot-1', { score }); status.textContent = 'Progreso guardado a través del bridge.'; } catch (e) { status.textContent = e.message; } });
+[7m [0m [93m                                                                                                                                            ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m5[0m:[93m268[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m5[0m document.getElementById('planet').addEventListener('click', async () => { if (!play) return; score++; update(); if (score === 1) { try { await play.achievements.requestUnlock('first-star'); status.textContent = 'Primer contacto · Tu primera estrella.'; } catch (e) { status.textContent = e.message; } } });
+[7m [0m [93m                                                                                                                                                                                                                                                                           ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m5[0m:[93m191[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m5[0m document.getElementById('planet').addEventListener('click', async () => { if (!play) return; score++; update(); if (score === 1) { try { await play.achievements.requestUnlock('first-star'); status.textContent = 'Primer contacto · Tu primera estrella.'; } catch (e) { status.textContent = e.message; } } });
+[7m [0m [93m                                                                                                                                                                                              ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m4[0m:[93m260[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m4[0m async function start() { try { play = await SaltoPlay.init(); const player = await play.player.getSaltoTag(); document.getElementById('identity').textContent = player.tag; status.textContent = 'Bridge conectado. Tu próxima estrella te espera.'; } catch (e) { status.textContent = 'No pudimos conectar el SDK: ' + e.message; } }
+[7m [0m [93m                                                                                                                                                                                                                                                                   ~~~~~~[0m
+[96mpublic/runtime/demo/game.js[0m:[93m4[0m:[93m173[0m - [93mwarning[0m[90m ts(6385): [0m'status' is deprecated.
+
+[7m4[0m async function start() { try { play = await SaltoPlay.init(); const player = await play.player.getSaltoTag(); document.getElementById('identity').textContent = player.tag; status.textContent = 'Bridge conectado. Tu próxima estrella te espera.'; } catch (e) { status.textContent = 'No pudimos conectar el SDK: ' + e.message; } }
+[7m [0m [93m                                                                                                                                                                            ~~~~~~[0m
+
+[96msrc/pages/api/library.ts[0m:[93m8[0m:[93m237[0m - [93mwarning[0m[90m ts(6385): [0m'(params?: string | { abort?: boolean | undefined; version?: "v1" | "v2" | "v3" | "v4" | "v5" | "v6" | "v7" | "v8" | undefined; error?: string | $ZodErrorMap<$ZodIssueInvalidStringFormat> | undefined; message?: string | undefined; } | undefined): ZodString' is deprecated.
+
+[7m8[0m export const POST: APIRoute = async ({ locals, request, redirect }) => { if (!locals.player) return redirect('/acceso?returnTo=/biblioteca'); try { const player = requirePlayer(locals.player); const data = z.object({ gameId: z.string().uuid(), returnTo: z.string().optional() }).parse(await formObject(request)); const [game] = await db().select().from(games).where(and(eq(games.id, data.gameId), eq(games.status, 'published'))); if (!game) throw new HttpError(404, 'not_found'); await db().insert(library).values({ playerId: player.id, gameId: game.id }).onConflictDoNothing(); return redirect(safeReturn(data.returnTo || '/biblioteca')); } catch (e) { return failure(e); } };
+[7m [0m [93m                                                                                                                                                                                                                                            ~~~~[0m
+
+Result (59 files): 
+- 0 errors
+- 0 warnings
+- 10 hints
+

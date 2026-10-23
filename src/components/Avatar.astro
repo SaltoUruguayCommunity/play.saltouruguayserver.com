@@ -1,0 +1,32 @@
+---
+interface Props {
+  src?: string | null;
+  name: string;
+  size?: number;
+  square?: boolean;
+  class?: string;
+}
+const { src, name, size = 32, square = false, class: className } = Astro.props;
+let image: string | undefined;
+try {
+  const url = new URL(src || '');
+  if ((url.protocol === 'https:' || (url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) && !url.username && !url.password) image = url.href;
+} catch { /* Missing or invalid avatars use the player's initial. */ }
+const initial = Array.from(name.trim())[0]?.toLocaleUpperCase('es-UY') || '?';
+---
+<span data-avatar class:list={['avatar', className]} role="img" aria-label={`Avatar de ${name}`} style={`--avatar-size: ${size}px; --avatar-radius: ${square ? '22%' : '50%'}`}>
+  <span data-avatar-fallback aria-hidden="true">{initial}</span>
+  {image && <img src={image} alt="" width={size} height={size} decoding="async" referrerpolicy="no-referrer" />}
+</span>
+<script>
+  document.querySelectorAll<HTMLElement>('[data-avatar]').forEach(avatar => {
+    const image = avatar.querySelector('img');
+    const fallback = avatar.querySelector<HTMLElement>('[data-avatar-fallback]');
+    if (!image || !fallback) return;
+    const loaded = () => { fallback.hidden = true; image.hidden = false; };
+    const failed = () => { image.hidden = true; fallback.hidden = false; };
+    image.addEventListener('load', loaded);
+    image.addEventListener('error', failed);
+    if (image.complete) image.naturalWidth ? loaded() : failed();
+  });
+</script>

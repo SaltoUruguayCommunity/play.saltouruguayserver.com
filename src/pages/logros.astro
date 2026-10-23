@@ -1,0 +1,10 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { Trophy } from '@lucide/astro';
+import { db } from '@/db';
+import { achievements, unlocks, games } from '@/db/schema';
+import { eq, desc } from 'drizzle-orm';
+const player = Astro.locals.player;
+const entries = player ? await db().select({ achievement: achievements, game: games, date: unlocks.createdAt }).from(unlocks).innerJoin(achievements, eq(achievements.id, unlocks.achievementId)).innerJoin(games, eq(games.id, achievements.gameId)).where(eq(unlocks.playerId, player.id)).orderBy(desc(unlocks.createdAt)) : [];
+---
+<Layout title="Mis logros"><div class="eyebrow mb-3">Pequeñas victorias. Grandes historias.</div><h1 class="page-title">Mis logros.</h1><p class="muted text-xs">Cada desafío superado, en un mismo lugar.</p>{player && <div class="panel mt-8 flex items-center justify-between"><span class="text-sm">Experiencia acumulada</span><span class="font-display text-2xl text-violet">{player.xp} XP</span></div>}{entries.length ? <div class="mt-6 grid gap-4 sm:grid-cols-2">{entries.map(e => <div class="panel flex gap-4"><div class="feature-icon shrink-0"><Trophy /></div><div><div class="eyebrow mb-2">{e.game.title}</div><h2 class="text-lg">{e.achievement.title}</h2><p class="muted my-2 text-xs">{e.achievement.description}</p><span class="text-[10px] text-violet">{e.date.toLocaleDateString('es-UY', { timeZone: 'America/Montevideo' })} · {e.achievement.verified ? `${e.achievement.xp} XP` : 'Logro casual'}</span></div></div>)}</div> : <div class="panel empty mt-8"><Trophy /><h2 class="text-xl">Tu primera victoria está por llegar.</h2><p>{player ? 'Cuando consigas un logro en un juego conectado, lo vas a encontrar acá.' : 'Ingresá con tu cuenta para reunir tus logros y construir tu historia de jugador.'}</p><a href={player ? '/juegos' : '/acceso?returnTo=/logros'} class="btn btn-primary">{player ? 'Encontrar un juego' : 'Ingresar con SaltoUruguayServer'}</a></div>}</Layout>

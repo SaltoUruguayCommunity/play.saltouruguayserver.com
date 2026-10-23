@@ -1,0 +1,10 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { Gamepad2, ArrowUpRight, ShieldCheck } from '@lucide/astro';
+import { databaseConfigured } from '@/db';
+import { safeReturn } from '@/lib/security';
+const configured = databaseConfigured() && Boolean(import.meta.env.SUS_CLIENT_ID);
+const returnTo = safeReturn(Astro.url.searchParams.get('returnTo'));
+if (Astro.locals.player) return Astro.redirect(returnTo);
+---
+<Layout title="Ingresá con tu cuenta SaltoUruguayServer"><div class="mx-auto max-w-lg py-12"><div class="panel p-9"><div class="feature-icon"><Gamepad2 /></div><div class="eyebrow mb-3">Una cuenta. Todo tu universo.</div><h1 class="page-title">Bienvenido a SaltoPlay.</h1><p class="muted mt-5 text-sm leading-7">Usá tu cuenta de SaltoUruguayServer para llevar tu identidad, tus juegos y tus logros a un mismo lugar.</p>{Astro.url.searchParams.has('error') && <p class="notice mt-6" role="alert">No pudimos completar el acceso. Intentá de nuevo; si cancelaste la autorización, podés volver cuando quieras.</p>}{configured ? <a href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`} class="btn btn-primary mt-7 w-full">Continuar con SaltoUruguayServer <ArrowUpRight /></a> : <div class="notice mt-7">El acceso estará disponible cuando se configure la conexión con SaltoUruguayServer y la base de SaltoPlay. Mientras tanto, podés explorar el catálogo y jugar la demo.</div>}<div class="mt-7 flex items-center gap-3 text-xs text-[#8b829b]"><ShieldCheck size={16} />Tu contraseña se queda en SaltoUruguayServer.</div><a href="/juegos" class="mt-7 block text-center text-xs text-violet">Seguir explorando sin ingresar →</a></div><p class="mt-6 text-center text-[11px] leading-6 text-[#726a80]">Al continuar aceptás los <a class="text-violet" href="/docs/terminos">términos</a> y la <a class="text-violet" href="/docs/privacidad">política de privacidad</a> de SaltoPlay.</p></div></Layout>

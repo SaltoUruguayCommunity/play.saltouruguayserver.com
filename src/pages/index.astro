@@ -1,0 +1,25 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import GameCard from '@/components/GameCard.astro';
+import ServerCard from '@/components/ServerCard.astro';
+import { catalog } from '@/lib/catalog';
+import { listServers } from '@/lib/community-servers';
+import { db, databaseConfigured } from '@/db';
+import { games as gamesTable, library } from '@/db/schema';
+import { and, eq, desc } from 'drizzle-orm';
+import { ArrowRight, Play, Library, Sparkles, ArrowUpRight } from '@lucide/astro';
+const player = Astro.locals.player;
+const [games, servers, savedGames] = await Promise.all([
+  catalog(), listServers(),
+  player ? db().select({ game: gamesTable }).from(library).innerJoin(gamesTable, eq(gamesTable.id, library.gameId)).where(and(eq(library.playerId, player.id), eq(gamesTable.status, 'published'))).orderBy(desc(library.updatedAt)).limit(6) : Promise.resolve([]),
+]);
+const featured = games[0];
+---
+<Layout preloadImage={featured ? (featured.cover || '/art/orbita.svg') : undefined}><div><div class="eyebrow mb-3">{player ? `Qué bueno verte, ${player.displayName}` : 'Tu lugar para jugar'}</div><h1 class="page-title">¿A qué jugamos hoy?</h1><p class="muted text-xs">Descubrí juegos, volvé a tus favoritos y sumate a la próxima partida de la comunidad.</p></div>
+{featured ? <section class="hero" aria-label="Juego destacado"><img class="hero-art" src={featured.cover || '/art/orbita.svg'} alt="" width="1200" height="450" loading="eager" fetchpriority="high" /><div class="hero-copy"><span class="badge badge-violet"><span class="size-1.5 rounded-full bg-violet"></span>{featured.demo ? 'PROBÁ ÓRBITA' : 'SELECCIÓN SALTOPLAY'}</span><h2>{featured.title === 'Órbita' ? <>Un pequeño salto.<br />Otro universo.</> : featured.title}</h2><p>{featured.description}</p><div class="mt-6 flex gap-3"><a class="btn btn-primary" href={`/jugar/${featured.slug}`}><Play size={16} fill="currentColor" />Jugar ahora</a><a class="btn btn-secondary" href={`/juegos/${featured.slug}`}>Explorar juego <ArrowUpRight size={14} /></a></div></div></section> : <div class="panel empty mt-7"><Sparkles /><h2>Nuevas partidas, muy pronto.</h2><p>Mientras llegan nuevos juegos al catálogo, podés sumarte a las series y servidores de la comunidad.</p><a href="/servidores" class="btn btn-primary">Ver servidores y series</a></div>}
+{savedGames.length > 0 && <section aria-label="Tu biblioteca"><div class="section-head"><h2>Siempre a mano</h2><a class="flex items-center gap-2 text-[11px] text-violet" href="/biblioteca">Mi biblioteca <ArrowRight size={14} /></a></div><div class="game-grid">{savedGames.map(({ game }) => <GameCard game={game} />)}</div></section>}
+<div class="section-head"><h2>Encontrá tu próxima partida <span class="ml-2 text-xs text-[#625b73]">/ {String(games.length).padStart(2, '0')}</span></h2><a class="flex items-center gap-2 text-[11px] text-violet" href="/juegos">Todos los juegos <ArrowRight size={14} /></a></div><div class="game-grid">{games.slice(0, 6).map(game => <GameCard game={game} />)}</div>
+{!databaseConfigured() && <p class="mt-5 text-[10px] text-[#777080]">Catálogo de muestra · Órbita es una demo. Conga y Ruleta Loca abren en la web principal.</p>}
+{servers.length > 0 && <section aria-label="Servidores y series de la comunidad"><div class="section-head"><h2>La comunidad está jugando</h2><a class="flex items-center gap-2 text-[11px] text-violet" href="/servidores">Servidores y series <ArrowRight size={14} /></a></div><div class="server-grid">{servers.slice(0, 3).map(server => <ServerCard server={server} />)}</div></section>}
+{!player && <section class="player-banner"><Library size={26} class="shrink-0 text-violet" /><div><h2 class="text-lg font-medium">Tus favoritos tienen un lugar.</h2><p class="muted mt-2 text-xs leading-6">Ingresá con tu cuenta de SaltoUruguayServer y reuní tus juegos, tu SaltoTag y tus logros.</p></div><a class="btn btn-secondary shrink-0" href="/acceso">Ingresar <ArrowUpRight size={14} /></a></section>}
+</Layout>

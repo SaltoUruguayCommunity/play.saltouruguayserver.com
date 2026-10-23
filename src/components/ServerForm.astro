@@ -1,0 +1,36 @@
+---
+import type { CommunityServer } from '@/lib/community-servers';
+interface Props { server?: CommunityServer; }
+const { server } = Astro.props;
+---
+<form class="panel server-admin-form" method="post" action="/api/admin/servers">
+  <h2 class="mb-5 text-xl">{server ? server.title : 'Agregar servidor o serie'}</h2>
+  {server && <input type="hidden" name="id" value={server.id} />}
+  <div class="grid gap-x-5 sm:grid-cols-2">
+    <label class="field">Nombre<input name="title" value={server?.title} required minlength="2" maxlength="100" placeholder="Nombre de la serie" /></label>
+    <label class="field">Juego<input name="game" value={server?.game} required minlength="2" maxlength="60" placeholder="Minecraft, Rust…" /></label>
+    <label class="field sm:col-span-2">Descripción<textarea name="description" required minlength="10" maxlength="1500">{server?.description}</textarea></label>
+    <label class="field">Estado<select name="state"><option value="active" selected={server?.state === 'active'}>Serie activa</option><option value="upcoming" selected={!server || server.state === 'upcoming'}>Próximamente</option><option value="maintenance" selected={server?.state === 'maintenance'}>En mantenimiento</option><option value="ended" selected={server?.state === 'ended'}>Finalizada</option></select></label>
+    <label class="field">Versión o edición (opcional)<input name="version" value={server?.version} maxlength="80" placeholder="Java · 1.21.1 · Modpack…" /></label>
+    <label class="field">IP o dirección (opcional)<input name="address" value={server?.address} maxlength="255" placeholder="servidor.ejemplo.com:25565" /></label>
+    <label class="field">Texto del botón de acceso<input name="joinLabel" value={server?.joinLabel || 'Cómo entrar'} required minlength="2" maxlength="45" /></label>
+    <label class="field sm:col-span-2">Enlace de acceso (opcional)<input name="joinUrl" value={server?.joinUrl} maxlength="1000" placeholder="https://discord.gg/… o enlace de launcher" /><span class="muted text-[10px]">HTTPS, minecraft:, steam:, fivem:, saltoplay: o saltouruguayserver:. La IP y el enlace son independientes.</span></label>
+    <label class="field sm:col-span-2">Nota de acceso (opcional)<input name="accessNote" value={server?.accessNote} maxlength="180" placeholder="Requiere whitelist · Información en Discord…" /></label>
+    <label class="field">Portada (opcional)<input name="cover" value={server?.cover} maxlength="1000" placeholder="https://… o /images/…" /></label>
+    <label class="field">Orden<input name="position" type="number" value={server?.position ?? 0} required min="0" max="999" /></label>
+  </div>
+  <label class="mb-6 flex items-center gap-3 text-xs"><input type="checkbox" name="visible" checked={server?.visible ?? false} />Visible para jugadores</label>
+  <button class="btn btn-primary">{server ? 'Guardar cambios' : 'Agregar serie'}</button><p class="notice mt-4" data-form-feedback role="status" hidden></p>
+</form>
+<script>
+  document.querySelectorAll<HTMLFormElement>('.server-admin-form').forEach(form => form.addEventListener('submit', async event => {
+    event.preventDefault(); const button = form.querySelector('button')!; const feedback = form.querySelector<HTMLElement>('[data-form-feedback]')!;
+    button.disabled = true; feedback.hidden = true;
+    try {
+      const endpoint = form.getAttribute('action'); if (!endpoint) throw new Error('El formulario no tiene un destino configurado.');
+      const response = await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.message || data.error);
+      location.reload();
+    } catch (error) { feedback.textContent = error instanceof Error ? error.message : 'No pudimos guardar los cambios.'; feedback.hidden = false; button.disabled = false; }
+  }));
+</script>

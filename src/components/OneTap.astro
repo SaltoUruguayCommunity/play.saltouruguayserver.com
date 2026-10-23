@@ -1,0 +1,5 @@
+---
+const issuer = import.meta.env.SUS_ISSUER || 'https://saltouruguayserver.com';
+const enabled = Boolean(import.meta.env.SUS_CLIENT_ID) && !Astro.locals.player && !Astro.url.pathname.startsWith('/oauth/') && import.meta.env.SUS_ONETAP !== 'false';
+---
+{enabled && <><script is:inline>window.saltoPlayOneTap = function () { window.location.assign('/auth/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search)); };</script><script is:inline src={`${issuer}/sdk/onetap.js`} data-client-id={import.meta.env.SUS_CLIENT_ID} data-custom-auth="true" data-callback="saltoPlayOneTap" data-position="bottom-right" defer></script></>}

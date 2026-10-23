@@ -1,0 +1,16 @@
+---
+import interFont from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
+import spaceGroteskFont from '@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2?url';
+interface Props { title: string; description?: string; preloadImage?: string; }
+const { title, description = 'Jugá, conectá y construí. La plataforma de juegos de SaltoUruguayServer.', preloadImage } = Astro.props;
+---
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width" />
+<link rel="preload" href={interFont} as="font" type="font/woff2" crossorigin="anonymous" />
+<link rel="preload" href={spaceGroteskFont} as="font" type="font/woff2" crossorigin="anonymous" />
+<link rel="preload" href="/brand/sus.svg" as="image" type="image/svg+xml" />
+{preloadImage && <link rel="preload" href={preloadImage} as="image" fetchpriority="high" />}
+<meta name="description" content={description} />
+<meta name="theme-color" content="#060109" />
+<link rel="icon" type="image/svg+xml" href="/brand/sus.svg" />
+<title>{title} · SaltoPlay</title>

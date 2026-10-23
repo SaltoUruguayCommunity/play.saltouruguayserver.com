@@ -1,0 +1,16 @@
+---
+import '@/styles/global.css';
+import DocumentHead from '@/components/DocumentHead.astro';
+interface Props { title: string; }
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="es-UY" data-theme="dark">
+  <head><DocumentHead title={title} description="Autorizá el acceso de un juego a tu cuenta SaltoPlay. Vos elegís qué permisos compartir." /><meta name="robots" content="noindex, nofollow" /></head>
+  <body class="auth-page">
+    <a href="#contenido" class="sr-only focus:not-sr-only">Saltar al contenido</a>
+    <header class="auth-header"><a class="brand" href="/" aria-label="SaltoPlay inicio"><img class="brand-logo" src="/brand/sus.svg" alt="" width="30" height="36" /><strong class="brand-name">salto<em>play</em></strong></a><span class="badge badge-violet">Autorización de juegos</span></header>
+    <main id="contenido" class="auth-content"><slot /></main>
+    <footer class="auth-footer"><span>SaltoPlay · SaltoUruguayServer</span><a href="/docs/privacidad">Privacidad</a></footer>
+  </body>
+</html>

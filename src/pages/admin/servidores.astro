@@ -1,0 +1,22 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import ServerForm from "@/components/ServerForm.astro";
+import { listServers } from "@/lib/community-servers";
+import { admin } from "@/lib/security";
+if (!Astro.locals.player || !admin(Astro.locals.player))
+  return Astro.redirect("/404");
+const servers = await listServers(true);
+---
+
+<Layout title="Administrar servidores"
+  ><a href="/admin" class="mb-6 inline-block text-xs text-violet"
+    >← Administración</a
+  ><h1 class="page-title">Servidores y series.</h1><p
+    class="muted mb-7 max-w-2xl text-xs leading-7"
+  >
+    Configurá qué está activo, cómo entrar y qué dirección pueden copiar los
+    jugadores. Ocultá una serie o marcala como finalizada cuando termine.
+  </p><div class="space-y-6">
+    {servers.map((server) => <ServerForm server={server} />)}<ServerForm />
+  </div></Layout
+>

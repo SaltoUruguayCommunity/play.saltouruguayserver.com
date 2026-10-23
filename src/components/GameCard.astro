@@ -1,0 +1,10 @@
+---
+import { ArrowUpRight } from '@lucide/astro';
+import type { Game } from '@/lib/catalog';
+interface Props { game: Game; }
+const { game } = Astro.props;
+---
+<a href={`/juegos/${game.slug}`} class="game-card" data-game data-title={game.title.toLowerCase()} data-genre={game.genre}>
+  <div class="game-image"><img src={game.cover || '/art/orbita.svg'} alt={`Portada de ${game.title}`} width="640" height="370" loading="lazy" /><span class="badge">{game.type === 'hosted' ? 'JUGÁ EN SALTOPLAY' : 'JUEGO EXTERNO'}</span></div>
+  <div class="game-info"><div><h3>{game.title}</h3><p>{game.genre} <span class="px-1">·</span> {game.demo && game.type === 'hosted' ? 'Demo interactiva' : 'Navegador'}</p></div><ArrowUpRight size={17} class="text-[#6c657b]" /></div>
+</a>

@@ -1,0 +1,9 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { documents } from '@/lib/docs';
+interface Props { slug: string; }
+const { slug } = Astro.props;
+const doc = documents[slug];
+const nav = [['inicio', 'Inicio rápido'], ['hosted', 'Hosting y bridge'], ['oauth', 'OAuth externo'], ['api', 'API de referencia'], ['jugadores', 'Para jugadores']];
+---
+<Layout title={doc.title}><div class="eyebrow mb-4">{doc.eyebrow}</div><h1 class="page-title">{doc.title}</h1><p class="muted mt-5 max-w-3xl text-sm leading-8">{doc.intro}</p><nav class="tabs" aria-label="Documentación">{nav.map(([key, label]) => <a class="chip" href={key === 'inicio' ? '/docs' : `/docs/${key}`} aria-current={key === slug ? 'page' : undefined}>{label}</a>)}</nav><article class="prose">{doc.sections.map(section => <section><h2 class="mb-3 text-xl">{section.title}</h2><p class="text-sm leading-8">{section.text}</p>{section.code && <pre class="my-5"><code>{section.code}</code></pre>}</section>)}</article></Layout>

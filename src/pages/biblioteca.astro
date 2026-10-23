@@ -1,0 +1,11 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import GameCard from '@/components/GameCard.astro';
+import { Library } from '@lucide/astro';
+import { db } from '@/db';
+import { games, library } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+const player = Astro.locals.player;
+const entries = player ? await db().select({ game: games }).from(library).innerJoin(games, eq(games.id, library.gameId)).where(and(eq(library.playerId, player.id), eq(games.status, 'published'))) : [];
+---
+<Layout title="Mi biblioteca"><div class="eyebrow mb-3">Tus partidas tienen un hogar</div><h1 class="page-title">Mi biblioteca.</h1><p class="muted text-xs">Guardá los juegos que querés tener siempre a mano.</p>{entries.length ? <div class="game-grid mt-8">{entries.map(e => <GameCard game={e.game} />)}</div> : <div class="panel empty mt-8"><Library /><h2 class="text-xl">{player ? 'Tu próxima aventura te espera.' : 'Un lugar para tus favoritos.'}</h2><p>{player ? 'Todavía no guardaste juegos. Explorá el catálogo y agregá los que más te gusten.' : 'Ingresá con SaltoUruguayServer para crear tu biblioteca y volver a tus juegos desde cualquier lugar.'}</p><a href={player ? '/juegos' : '/acceso?returnTo=/biblioteca'} class="btn btn-primary">{player ? 'Explorar juegos' : 'Ingresar con SaltoUruguayServer'}</a></div>}</Layout>

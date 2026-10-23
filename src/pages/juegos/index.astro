@@ -1,0 +1,10 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import GameCard from '@/components/GameCard.astro';
+import { catalog } from '@/lib/catalog';
+const games = await catalog();
+const query = Astro.url.searchParams.get('q')?.toLowerCase() || '';
+const filtered = games.filter(g => `${g.title} ${g.genre}`.toLowerCase().includes(query));
+---
+<Layout title="Explorá los juegos"><div class="eyebrow mb-3">Elegí tu próxima aventura</div><h1 class="page-title">Todos los juegos.</h1><p class="muted text-xs">Un buen momento está a una partida de distancia.</p><div class="tabs" aria-label="Filtrar por categoría">{['Todos', ...new Set(games.map(g => g.genre))].map((genre, i) => <button class="chip" data-filter={genre} aria-pressed={i === 0}>{genre}</button>)}</div>{query && <p class="muted mb-6 text-xs">Resultados para «{query}» · <a href="/juegos" class="text-violet">Limpiar búsqueda</a></p>}<div class="game-grid">{filtered.map(game => <GameCard game={game} />)}</div><div id="no-results" class="panel empty mt-6" hidden={filtered.length > 0}><h2>No encontramos juegos.</h2><p>Probá con otra búsqueda o categoría.</p></div></Layout>
+<script>document.querySelectorAll<HTMLButtonElement>('[data-filter]').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('[data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b === button))); let visible = 0; document.querySelectorAll<HTMLElement>('[data-game]').forEach(card => { card.hidden = button.dataset.filter !== 'Todos' && card.dataset.genre !== button.dataset.filter; if (!card.hidden) visible++; }); document.getElementById('no-results')!.hidden = visible > 0; }));</script>

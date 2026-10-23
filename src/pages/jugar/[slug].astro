@@ -1,0 +1,75 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { findGame } from '@/lib/catalog';
+import { runtimeOrigin } from '@/lib/runtime';
+import { Play, ArrowLeft, Maximize, ExternalLink, ShieldCheck } from '@lucide/astro';
+const game = await findGame(Astro.params.slug!);
+if (!game) return Astro.redirect('/404');
+const origin = game.demo ? (import.meta.env.PUBLIC_HOSTED_DEMO_ORIGIN || 'http://127.0.0.1:4322') : runtimeOrigin(game.id);
+const src = game.demo ? `${origin}/demo/index.html` : `${origin}/${game.activeBuildId || ''}/index.html`;
+---
+<Layout title={`Jugar ${game.title}`}><div class="mb-6 flex items-center justify-between"><a href={`/juegos/${game.slug}`} class="flex items-center gap-2 text-xs text-violet"><ArrowLeft size={14} />{game.title}</a><span class="badge">{game.type === 'hosted' ? 'HOSTED' : 'EXTERNAL'}</span></div>
+{game.type === 'external' ? <div class="panel empty"><ExternalLink /><h1 class="page-title">Tu partida sigue en {game.title}.</h1><p>Este juego se aloja en un sitio externo. Abrilo para continuar; su inicio de sesión se gestiona allí.</p><a class="btn btn-primary" href={game.url || '/juegos'} rel="noopener noreferrer" target="_blank">Abrir juego <ExternalLink size={15} /></a></div> : <div id="game-host" data-game-id={game.id} data-demo={String(Boolean(game.demo))} data-origin={origin} data-src={src} class="overflow-hidden rounded-xl border border-white/10 bg-[#100d1b]"><div id="launch-screen" class="relative grid min-h-[480px] place-items-center overflow-hidden p-8"><img src={game.cover || '/art/orbita.svg'} class="absolute inset-0 h-full w-full object-cover opacity-25" alt="" /><div class="relative max-w-md text-center"><div class="eyebrow mb-4">Listo para despegar</div><h1 class="page-title">{game.title}</h1><p class="muted my-6 text-sm leading-7">{game.demo ? 'Una demo del SDK hosted. Conectá el bridge, juntá estrellas y probá un guardado. El progreso de esta demo dura mientras esta página esté abierta.' : 'Conectá tu SaltoTag para jugar y conservar tu progreso. El juego podrá leer tu perfil y SaltoTag, consultar y solicitar logros casuales y leer o escribir sus propios guardados.'}</p>{!game.demo && !Astro.locals.player ? <a class="btn btn-primary" href={`/acceso?returnTo=${encodeURIComponent(Astro.url.pathname)}`}>Ingresar con SaltoUruguayServer</a> : <button id="launch" class="btn btn-primary"><Play fill="currentColor" />{game.demo ? 'Iniciar demo' : 'Permitir y jugar'}</button>}<p id="launch-error" class="mt-5 text-xs text-rose-300" role="alert" hidden></p></div></div><iframe id="game-frame" title={game.title} class="h-[540px] w-full border-0" sandbox="allow-scripts allow-same-origin allow-pointer-lock" allow="fullscreen; gamepad" referrerpolicy="origin" hidden></iframe><div class="flex items-center justify-between border-t border-white/5 bg-[#131118] px-5 py-3"><span id="bridge-status" class="text-[10px] text-[#8d819f]" role="status">Sesión de juego sin iniciar</span><div class="flex gap-4"><button id="stop" class="text-[11px] text-[#a397b4]" hidden>Salir del juego</button><button id="fullscreen" aria-label="Pantalla completa" class="text-[#a397b4]"><Maximize size={15} /></button></div></div></div>}
+<div id="game-toast" role="status" class="notice mt-5" hidden></div><div class="mt-5 flex items-center gap-2 text-[10px] text-[#7e738d]"><ShieldCheck size={14} />El juego se ejecuta en un origen separado de tu cuenta SaltoPlay.</div></Layout>
+<script>
+import { validHandshake, validRpc } from '@/lib/bridge-protocol';
+const host = document.getElementById('game-host');
+if (host) {
+  const frame = document.getElementById('game-frame') as HTMLIFrameElement;
+  const status = document.getElementById('bridge-status')!;
+  const launch = document.getElementById('launch') as HTMLButtonElement | null;
+  const screen = document.getElementById('launch-screen')!;
+  const stop = document.getElementById('stop')!;
+  const demo = host.dataset.demo === 'true';
+  let port: MessagePort | null = null, token = '', expiresAt = 0, active = false, connecting = false, loaded = false, generation = 0;
+  let requests = 0, intervalStart = Date.now();
+  const seen = new Set<string>(); const demoSaves = new Map<string, { data: unknown; version: number }>();
+  const demoAchievements = new Set<string>();
+  const notify = (message: string) => { const toast = document.getElementById('game-toast')!; toast.textContent = message.slice(0, 200); toast.hidden = false; };
+  async function credential(consent = false) { const response = await fetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId: host!.dataset.gameId, consent }) }); const data = await response.json(); if (!response.ok) throw new Error(data.message || data.error); token = data.token; expiresAt = Date.now() + data.expiresIn * 1000; }
+  async function rpc(method: string, params: Record<string, unknown> = {}) {
+    if (method === 'session.get') return { authenticated: !demo, transport: 'hosted', demo };
+    if (method === 'ui.notify') { if (typeof params.message !== 'string') throw new Error('invalid_message'); notify(params.message); return true; }
+    if (demo) {
+      if (method === 'player.getProfile') return { displayName: 'Explorador invitado', avatar: null };
+      if (method === 'player.getSaltoTag') return { tag: 'explorador-demo', displayName: 'Explorador invitado', demo: true };
+      if (method === 'achievements.list') return [{ key: 'first-star', title: 'Primer contacto', unlocked: demoAchievements.has('first-star'), xp: 0 }];
+      if (method === 'achievements.requestUnlock') { if (params.key !== 'first-star') throw new Error('achievement_not_found'); const already = demoAchievements.has('first-star'); demoAchievements.add('first-star'); if (!already) notify('Demo · Primer contacto: encontraste tu primera estrella.'); return { unlocked: true, newlyUnlocked: !already, xp: 0 }; }
+      if (typeof params.slot !== 'string' || !/^[\w-]{1,64}$/.test(params.slot)) throw new Error('invalid_slot');
+      if (method === 'saves.get') return demoSaves.get(params.slot) || { data: null, version: 0 };
+      if (method === 'saves.set') { const previous = demoSaves.get(params.slot); if (params.version !== (previous?.version || 0)) throw new Error('save_conflict'); const value = { data: params.data, version: (previous?.version || 0) + 1 }; demoSaves.set(params.slot, value); return { version: value.version }; }
+      throw new Error('unsupported_method');
+    }
+    if (Date.now() > expiresAt - 30000) await credential();
+    const routes: Record<string, [string, string]> = { 'player.getProfile': ['GET', '/me'], 'player.getSaltoTag': ['GET', '/me/saltotag'], 'achievements.list': ['GET', '/achievements'], 'achievements.requestUnlock': ['POST', '/achievements/unlock'], 'saves.get': ['GET', `/saves/${encodeURIComponent(String(params.slot))}`], 'saves.set': ['PUT', `/saves/${encodeURIComponent(String(params.slot))}`] };
+    const route = routes[method]; if (!route) throw new Error('unsupported_method');
+    const response = await fetch('/api/v1' + route[1], { method: route[0], headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(route[0] !== 'GET' ? { body: JSON.stringify(params) } : {}) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'request_failed'); return data;
+  }
+  const disconnect = () => { generation++; port?.close(); port = null; seen.clear(); connecting = false; if (token) void fetch('/api/launch', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }), keepalive: true }).catch(() => {}); token = ''; };
+  frame.addEventListener('load', () => { disconnect(); loaded = active; status.textContent = active ? 'Conectando al bridge…' : 'Partida finalizada'; });
+  window.addEventListener('message', async event => {
+    if (!active || !loaded || port || connecting || !validHandshake(event, host.dataset.origin!, frame.contentWindow)) return;
+    connecting = true; const current = generation;
+    try {
+      if (!demo && !token) await credential();
+      if (current !== generation || !active) return;
+      const channel = new MessageChannel(); port = channel.port1;
+      port.onmessage = async ({ data }) => {
+        if (!validRpc(data) || seen.has(data.id)) return;
+        if (Date.now() - intervalStart > 60000) { intervalStart = Date.now(); requests = 0; }
+        if (++requests > 180 || seen.size > 10000) { port?.postMessage({ id: data.id, error: { code: 'rate_limited' } }); return; }
+        seen.add(data.id); const target = port;
+        try { const result = await rpc(data.method, data.params); if (current === generation) target?.postMessage({ id: data.id, result }); }
+        catch (error) { if (current === generation) target?.postMessage({ id: data.id, error: { code: error instanceof Error ? error.message : 'request_failed' } }); }
+      };
+      frame.contentWindow!.postMessage({ type: 'saltoplay:connect', version: 1, launchId: crypto.randomUUID() }, host.dataset.origin!, [channel.port2]);
+      status.textContent = demo ? 'Bridge conectado · Invitado · Demo' : 'Bridge conectado · Sesión autorizada';
+    } catch (error) { status.textContent = error instanceof Error ? error.message : 'No pudimos conectar el juego'; }
+    finally { connecting = false; }
+  });
+  launch?.addEventListener('click', async () => { launch.disabled = true; const error = document.getElementById('launch-error')!; error.hidden = true; try { if (!demo) await credential(true); loaded = false; active = true; screen.hidden = true; frame.hidden = false; stop.hidden = false; frame.src = host.dataset.src!; setTimeout(() => { if (active && !port) { status.textContent = 'El juego todavía no conectó. Revisá que el servidor de juegos esté disponible.'; } }, 15000); } catch (e) { error.textContent = e instanceof Error ? e.message : 'No pudimos iniciar'; error.hidden = false; } finally { launch.disabled = false; } });
+  stop.addEventListener('click', () => { active = false; disconnect(); frame.src = 'about:blank'; frame.hidden = true; screen.hidden = false; stop.hidden = true; status.textContent = 'Partida finalizada'; });
+  document.getElementById('fullscreen')?.addEventListener('click', async () => { try { await host.requestFullscreen(); } catch { notify('Tu navegador no permite abrir pantalla completa en este momento.'); } });
+  window.addEventListener('pagehide', disconnect);
+}
+</script>

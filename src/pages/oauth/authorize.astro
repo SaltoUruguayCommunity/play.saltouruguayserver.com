@@ -1,0 +1,142 @@
+---
+import Layout from "@/layouts/AuthLayout.astro";
+import Avatar from "@/components/Avatar.astro";
+import { approvedClient, validateRedirect } from "@/lib/oauth";
+import { scopes as supported } from "@/lib/security";
+import { z } from "zod";
+import { ShieldCheck, Gamepad2 } from "@lucide/astro";
+let info;
+let error = "";
+const params = Object.fromEntries(Astro.url.searchParams);
+const parsed = z
+  .object({
+    client_id: z.uuid(),
+    redirect_uri: z.url(),
+    response_type: z.literal("code"),
+    code_challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    code_challenge_method: z.literal("S256"),
+    state: z.string().min(16).max(512),
+    scope: z.string().max(500),
+  })
+  .safeParse(params);
+let requested: string[] = [];
+try {
+  if (!parsed.success) throw new Error("Solicitud OAuth inválida.");
+  info = await approvedClient(parsed.data.client_id);
+  validateRedirect(info.client.redirectUris, parsed.data.redirect_uri);
+  requested = [...new Set(parsed.data.scope.split(" ").filter(Boolean))];
+  if (
+    !requested.length ||
+    requested.some(
+      (s) =>
+        !info!.client.scopes.includes(s) ||
+        !(supported as readonly string[]).includes(s),
+    )
+  )
+    throw new Error("El juego pidió permisos no disponibles.");
+} catch {
+  error =
+    "No podemos autorizar esta solicitud. Revisá el cliente, los permisos y la dirección de retorno.";
+  Astro.response.status = 400;
+}
+if (!error && !Astro.locals.player)
+  return Astro.redirect(
+    `/acceso?returnTo=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`,
+  );
+const labels: Record<string, string> = {
+  "profile:read": "Leer tu nombre y avatar",
+  "saltotag:read": "Leer tu SaltoTag",
+  "achievements:read": "Consultar tus logros en este juego",
+  "achievements:write": "Solicitar logros casuales de este juego",
+  "saves:read": "Leer tus partidas guardadas de este juego",
+  "saves:write": "Guardar tu progreso en este juego",
+};
+const player = Astro.locals.player;
+const destination = parsed.success
+  ? new URL(parsed.data.redirect_uri).origin
+  : "";
+
+console.log("OAuth authorize", { error, info, requested, player, destination });
+---
+
+<Layout title={error ? "Solicitud inválida" : `Autorizar ${info?.game.title}`}>
+  <section class="panel oauth-card">
+    <div class="feature-icon"><ShieldCheck /></div>
+    <div class="eyebrow mb-4">Conectar con SaltoPlay</div>
+    <h1 class="page-title">
+      {
+        error
+          ? "Solicitud inválida."
+          : `${info?.game.title} quiere conectarse con vos.`
+      }
+    </h1>
+    {
+      error ? (
+        <>
+          <>
+            <p class="notice mt-6" role="alert">
+              {error}
+            </p>
+            <a href="/" class="btn btn-secondary mt-6">
+              Volver a SaltoPlay
+            </a>
+          </>
+        </>
+      ) : (
+        <>
+          {player && (
+            <div class="oauth-account">
+              <Avatar src={player.avatar} name={player.displayName} size={44} />
+              <div class="min-w-0">
+                <p class="muted text-[10px]">Vas a continuar como</p>
+                <p class="mt-1 truncate text-sm font-medium">
+                  {player.displayName}
+                </p>
+                <p class="mt-1 truncate text-[11px] text-violet">
+                  {player.tag}
+                </p>
+              </div>
+            </div>
+          )}
+          <p class="muted mt-5 text-xs leading-7">
+            Este juego solicita los siguientes permisos. El acceso a logros y
+            guardados se limita a sus propios datos.
+          </p>
+          <ul class="oauth-scopes">
+            {requested.map((scope) => (
+              <li>
+                <Gamepad2 size={17} class="shrink-0 text-violet" />
+                <span>{labels[scope] || scope}</span>
+              </li>
+            ))}
+          </ul>
+          <p class="muted mb-6 text-[11px] leading-6">
+            Podés revocar el acceso desde Ajustes en cualquier momento. Tu
+            contraseña y tu sesión de SaltoUruguayServer no se comparten con el
+            juego.
+          </p>
+          <form method="post" action="/oauth/consent">
+            {Object.entries(parsed.success ? parsed.data : {}).map(
+              ([key, value]) => (
+                <input type="hidden" name={key} value={value} />
+              ),
+            )}
+            <div class="oauth-actions">
+              <>
+                <button name="decision" value="allow" class="btn btn-primary">
+                  Permitir y continuar
+                </button>
+                <button name="decision" value="deny" class="btn btn-secondary">
+                  Cancelar
+                </button>
+              </>
+            </div>
+          </form>
+          <p class="oauth-destination">
+            Al continuar, vas a volver a <span>{destination}</span>
+          </p>
+        </>
+      )
+    }
+  </section>
+</Layout>

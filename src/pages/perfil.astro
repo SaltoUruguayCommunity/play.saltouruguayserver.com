@@ -1,0 +1,7 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import Avatar from '@/components/Avatar.astro';
+import { FingerprintPattern, Settings, Trophy } from '@lucide/astro';
+const player = Astro.locals.player;
+---
+<Layout title="Mi SaltoTag">{player ? <><div class="panel relative overflow-hidden p-8 sm:p-12"><div class="absolute inset-0 bg-linear-to-br from-violet/10 to-transparent"></div><div class="relative"><Avatar src={player.avatar} name={player.displayName} size={80} square class="mb-6" /><span class="eyebrow">Tu identidad en SaltoPlay</span><h1 class="page-title mt-3">{player.displayName}</h1><p class="text-sm text-violet">{player.tag}</p><p class="muted mt-6 max-w-lg text-sm leading-7">{player.bio || 'Cada jugador tiene una historia. La tuya empieza acá.'}</p><div class="mt-7 flex gap-3"><span class="badge badge-violet"><Trophy size={13} />{player.xp} XP</span><span class="badge">{player.publicProfile ? 'Perfil público' : 'Perfil privado'}</span></div><a href="/ajustes" class="btn btn-secondary mt-7"><Settings size={15} />Editar perfil</a></div></div></> : <div class="panel empty"><FingerprintPattern /><div class="eyebrow mb-4">Tu identidad de jugador</div><h1 class="page-title">Un SaltoTag. Todo vos.</h1><p>Un nombre que te identifica en cada juego. Tus logros, tu experiencia y tus próximas aventuras empiezan con tu cuenta SaltoUruguayServer.</p><a href="/acceso?returnTo=/perfil" class="btn btn-primary">Crear mi perfil con SaltoUruguayServer</a></div>}</Layout>

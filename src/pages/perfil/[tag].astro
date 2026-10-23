@@ -1,0 +1,11 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import Avatar from '@/components/Avatar.astro';
+import { db, databaseConfigured } from '@/db';
+import { players } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
+if (!databaseConfigured()) return Astro.redirect('/404');
+const [player] = await db().select({ displayName: players.displayName, avatar: players.avatar, tag: players.tag, bio: players.bio, xp: players.xp }).from(players).where(and(eq(players.tag, Astro.params.tag!.toLowerCase()), eq(players.publicProfile, true)));
+if (!player) return Astro.redirect('/404');
+---
+<Layout title={player.tag}><div class="panel p-10"><Avatar src={player.avatar} name={player.displayName} size={80} square class="mb-6" /><div class="eyebrow mb-4">Jugador de SaltoPlay</div><h1 class="page-title">{player.displayName}</h1><p class="mt-3 text-violet">{player.tag}</p><p class="muted mt-7 max-w-lg text-sm leading-8">{player.bio || 'Cada partida es una nueva historia.'}</p><span class="badge badge-violet mt-7">{player.xp} XP</span></div></Layout>
