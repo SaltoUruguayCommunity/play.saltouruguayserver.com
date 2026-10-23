@@ -24,7 +24,7 @@ Para detener Astro: `pnpm exec astro dev stop`. Para el runtime, Ctrl+C en su te
 1. Copiar `.env.example` a `.env` y configurar una **base PostgreSQL nueva y dedicada**. No usar la base de SaltoUruguayServer.
 2. Registrar en SaltoUruguayServer un cliente OAuth con callback exacto `PUBLIC_APP_URL/auth/callback`. Agregar ID y secreto a `.env`.
 3. El rol de administrador se hereda del booleano `is_admin` devuelto por `/oauth/userinfo` de SaltoUruguayServer y se sincroniza en cada inicio de sesión. Opcionalmente, `ADMIN_SUS_SUBJECTS` permite autorizar identificadores concretos como excepción local; dejarlo vacío para depender sólo del rol central. No usar email como identificador. Los cambios de rol centrales se reflejan al volver a iniciar sesión, no en tiempo real.
-4. Revisar los archivos SQL en `src/db/migrations` y ejecutar manualmente `pnpm db:migrate` contra esa nueva base para inicializarla o aplicar cambios pendientes. No se ejecuta al iniciar, comprobar tipos o compilar.
+4. Revisar los archivos SQL en `src/db/migrations`. La integración de Astro ejecuta `pnpm db:migrate` al finalizar el build contra la base dedicada indicada por `DATABASE_URL`; también se puede ejecutar manualmente. Un error de migración hace fallar el build. No se ejecuta al iniciar ni al comprobar tipos.
 5. Reiniciar Astro después de cambiar variables de entorno.
 
 El acceso usa Authorization Code + PKCE S256. La sesión local es HttpOnly, host-only y Secure en HTTPS. OneTap usa el modo custom-auth del SDK SaltoUruguayServer y desemboca en ese mismo flujo; se puede desactivar con `SUS_ONETAP=false`. No se confía en el perfil ni en tokens recibidos del widget.
@@ -42,6 +42,10 @@ pnpm db:studio
 
 Versionar tanto los archivos SQL como la carpeta `meta` de Drizzle. La migración inicial crea las tablas de SaltoPlay; no importa datos de SaltoUruguayServer ni ejecuta seeds.
 
+### Despliegue en Vercel
+
+El portal usa `@astrojs/vercel`. Configurar las variables de `.env.example` en Vercel y disponer de `DATABASE_URL` durante el build para aplicar las migraciones pendientes de la base dedicada de SaltoUruguayServer Play. El runtime de juegos requiere su propio alojamiento y almacenamiento persistente, separado del portal.
+
 ## Implementado
 
 - Interfaz dark responsive: descubrimiento, filtros/búsqueda, fichas, biblioteca, perfil público/privado, SaltoTag, logros y ajustes.
@@ -51,6 +55,7 @@ Versionar tanto los archivos SQL como la carpeta `meta` de Drizzle. La migració
 - API v1: perfil, SaltoTag, logros casuales idempotentes y guardados con concurrencia optimista.
 - SDK web en `public/sdk/saltoplay.js`: transportes hosted/external, errores, timeouts y control de versiones de guardado. No se publicó un paquete npm.
 - Bridge hosted con validación de origen/ventana, puerto privado, lista de métodos y límites de mensajes. El token de partida queda en el portal y caduca en cinco minutos.
+- UI unificada del SDK 0.2: avisos flotantes de logros nuevos confirmados por la API, notificaciones generales, cola, cierre, posición/duración configurables, pausa y movimiento reducido. Hosted presenta la UI en el portal y external usa el mismo renderer aislado con Shadow DOM. La UI visual no concede recompensas. La copia del SDK de Guerra Saltana se mantiene sincronizada.
 - Subida de ZIP validado, almacenamiento fuera de public y runtime separado. Distribuciones inmutables, revisión y selección de versión activa.
 - Documentación de integración dentro de `/docs` y demo interactiva en `/jugar/orbita`.
 - Portal centrado en jugadores: juegos destacados, biblioteca y servidores/series, sin promociones de desarrollo en el inicio o la cabecera.

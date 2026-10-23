@@ -30,7 +30,7 @@ export const ALL: APIRoute = async ({ request, params }) => {
       if (achievement.verified) throw new HttpError(403, 'server_verification_required');
       const rows = await db().insert(unlocks).values({ playerId: player.id, achievementId: achievement.id }).onConflictDoNothing().returning();
       // Client-reported achievements never award global XP.
-      return json({ key, unlocked: true, newlyUnlocked: rows.length > 0, xp: 0 }, 200, headers);
+      return json({ key, unlocked: true, newlyUnlocked: rows.length > 0, xp: 0, gameTitle: game.title, achievement: { key: achievement.key, title: achievement.title, description: achievement.description } }, 200, headers);
     }
     if (path.startsWith('saves/')) {
       const slot = slotSchema.parse(path.slice(6));

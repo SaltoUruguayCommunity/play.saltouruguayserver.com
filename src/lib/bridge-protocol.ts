@@ -1,4 +1,4 @@
-export const bridgeMethods = ['player.getProfile', 'player.getSaltoTag', 'achievements.list', 'achievements.requestUnlock', 'saves.get', 'saves.set', 'session.get', 'ui.notify'] as const;
+export const bridgeMethods = ['player.getProfile', 'player.getSaltoTag', 'achievements.list', 'achievements.requestUnlock', 'saves.get', 'saves.set', 'session.get', 'ui.notify', 'ui.achievement', 'ui.configure', 'ui.dismissAll'] as const;
 export function validHandshake(event: { origin: string; source: unknown; data: unknown }, expectedOrigin: string, expectedSource: unknown) {
   const data = event.data as Record<string, unknown> | null;
   return event.origin === expectedOrigin && event.source === expectedSource && data?.type === 'saltoplay:ready' && data?.version === 1;

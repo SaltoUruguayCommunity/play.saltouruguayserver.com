@@ -1,7 +1,7 @@
 # SaltoPlay
 
 - Use pnpm and pnpx exclusively.
-- SaltoPlay was never released: no legacy data imports or compatibility migrations. Use pnpm db:generate for versioned schema changes in src/db/migrations and pnpm db:migrate to apply them manually to the dedicated database. Never apply schema changes automatically at startup or build time.
+- SaltoPlay was never released: no legacy data imports or compatibility migrations. Use pnpm db:generate for versioned schema changes in src/db/migrations and pnpm db:migrate to apply them manually to the dedicated database. The Astro integration also applies pending migrations after a successful build; never migrate at application startup.
 - Astro SSR, Tailwind CSS v4, TypeScript, PostgreSQL and Drizzle.
 - Never access the main website database for this project.
 - Hosted game code must remain isolated from the portal origin. Never send a SaltoUruguayServer token or portal session to an iframe.
