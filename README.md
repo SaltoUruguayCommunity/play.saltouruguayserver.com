@@ -55,7 +55,7 @@ El portal usa `@astrojs/vercel`. Configurar las variables de `.env.example` en V
 - API v1: perfil, SaltoTag, logros casuales idempotentes y guardados con concurrencia optimista.
 - SDK web en `public/sdk/saltoplay.js`: transportes hosted/external, errores, timeouts y control de versiones de guardado. No se publicó un paquete npm.
 - Bridge hosted con validación de origen/ventana, puerto privado, lista de métodos y límites de mensajes. El token de partida queda en el portal y caduca en cinco minutos.
-- UI unificada del SDK 0.2: avisos flotantes de logros nuevos confirmados por la API, notificaciones generales, cola, cierre, posición/duración configurables, pausa y movimiento reducido. Hosted presenta la UI en el portal y external usa el mismo renderer aislado con Shadow DOM. La UI visual no concede recompensas. La copia del SDK de Guerra Saltana se mantiene sincronizada.
+- UI unificada del SDK 0.2: avisos flotantes de logros nuevos confirmados por la API, notificaciones generales, cola, cierre, posición/duración configurables, pausa y movimiento reducido. Hosted presenta la UI en el portal y external usa el mismo renderer aislado con Shadow DOM. La UI visual no concede recompensas. Guerra Saltana carga directamente el SDK oficial alojado en el portal.
 - Subida de ZIP validado, almacenamiento fuera de public y runtime separado. Distribuciones inmutables, revisión y selección de versión activa.
 - Documentación de integración dentro de `/docs` y demo interactiva en `/jugar/orbita`.
 - Portal centrado en jugadores: juegos destacados, biblioteca y servidores/series, sin promociones de desarrollo en el inicio o la cabecera.

@@ -1,7 +1,33 @@
-/* SaltoPlay SDK v0.3 — unified UI / hosted MessageChannel / external OAuth PKCE. */
+/* SaltoPlay SDK v0.4 — popup OAuth PKCE / tab sessions / hosted MessageChannel. */
 (function (global) {
   'use strict';
-  if (global.SaltoPlay?.version === '0.3.0') return;
+  if (global.SaltoPlay?.version === '0.4.0') return;
+  const flowKey = state => 'saltoplay:oauth:' + state;
+  const readStorage = key => { try { return JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { return null; } };
+  // The registered game callback loads this same SDK. Only the authorization
+  // result returns to its opener; tokens are exchanged in the original game.
+  const callbackQuery = new URLSearchParams(location.search);
+  const callbackState = callbackQuery.get('state');
+  const callbackFlow = callbackState && readStorage(flowKey(callbackState));
+  if (callbackFlow?.mode === 'popup' && callbackFlow.state === callbackState &&
+      callbackFlow.createdAt > Date.now() - 600000 &&
+      new URL(callbackFlow.redirectUri).origin === location.origin &&
+      new URL(callbackFlow.redirectUri).pathname === location.pathname &&
+      (callbackQuery.has('code') || callbackQuery.has('error'))) {
+    if (global.opener) global.opener.postMessage({ type: 'saltoplay:oauth-result', state: callbackState,
+      code: callbackQuery.get('code'), error: callbackQuery.get('error') }, location.origin);
+    sessionStorage.removeItem(flowKey(callbackState));
+    callbackQuery.delete('code'); callbackQuery.delete('error'); callbackQuery.delete('state');
+    history.replaceState(null, '', location.pathname + (callbackQuery.size ? '?' + callbackQuery : '') + location.hash);
+    global.SaltoPlay = { version: '0.4.0', isOAuthCallback: true };
+    if (global.opener) global.close();
+    else {
+      const message = document.createElement('p');
+      message.textContent = 'No pudimos volver al juego desde esta ventana. Cerrala y reintentá el login usando redirección.';
+      document.body.replaceChildren(message);
+    }
+    return;
+  }
   // One isolated, dependency-free overlay per document, shared by SDK clients.
   function createUI() {
     const positions = ['bottom-center', 'bottom-right', 'bottom-left', 'top-center', 'top-right', 'top-left'];
@@ -173,31 +199,112 @@
       close = () => { closed = true; port.close(); for (const p of pending.values()) { clearTimeout(p.timeout); p.reject(new Error('bridge_closed')); } pending.clear(); };
     } else {
       const base = (options.apiOrigin || 'https://play.saltouruguayserver.com').replace(/\/$/, '');
-      let token = options.accessToken;
+      const sessionKey = 'saltoplay:session:' + JSON.stringify([base, options.clientId, options.redirectUri]);
+      const saved = options.persistence === 'memory' ? null : readStorage(sessionKey);
+      let token = options.accessToken || saved?.accessToken;
+      let refreshToken = options.accessToken ? null : saved?.refreshToken;
+      let expiresAt = options.accessToken ? Infinity : saved?.expiresAt || 0;
+      let renewal, loginTask, cancelLogin;
+      let sessionEpoch = 0;
+      function persist() {
+        if (options.persistence === 'memory' || options.accessToken) return;
+        try {
+          if (token) sessionStorage.setItem(sessionKey, JSON.stringify({ accessToken: token, refreshToken, expiresAt }));
+          else sessionStorage.removeItem(sessionKey);
+        } catch { /* Storage can be disabled; the in-memory session still works. */ }
+      }
+      function clearSession() { token = null; refreshToken = null; expiresAt = 0; persist(); }
+      async function exchange(params) {
+        const epoch = sessionEpoch;
+        const response = await fetch(base + '/oauth/token', { method: 'POST', body: new URLSearchParams({ client_id: options.clientId, ...params }) });
+        const result = await response.json();
+        if (!response.ok) throw Object.assign(new Error(result.error || 'oauth_exchange_failed'), { code: result.error });
+        if (closed || epoch !== sessionEpoch) throw new Error('auth_cancelled');
+        if (typeof result.access_token !== 'string' || !Number.isFinite(result.expires_in) || result.expires_in <= 0) throw new Error('invalid_token_response');
+        token = result.access_token; refreshToken = result.refresh_token || null;
+        expiresAt = Date.now() + result.expires_in * 1000; persist();
+      }
+      async function ensureToken() {
+        if (!token || expiresAt > Date.now() + 30000) return;
+        if (!refreshToken) { clearSession(); return; }
+        if (!renewal) renewal = exchange({ grant_type: 'refresh_token', refresh_token: refreshToken })
+          .catch(error => { if (['invalid_grant', 'invalid_client'].includes(error.code)) clearSession(); throw error; })
+          .finally(() => { renewal = null; });
+        try { await renewal; } catch (error) {
+          if (!['invalid_grant', 'invalid_client'].includes(error.code)) throw error;
+        }
+      }
       const query = new URLSearchParams(location.search);
       if (query.has('code') || query.has('error')) {
-        const raw = sessionStorage.getItem('saltoplay:oauth'); sessionStorage.removeItem('saltoplay:oauth');
-        if (!raw) throw new Error('oauth_state_missing');
-        const flow = JSON.parse(raw);
-        if (flow.state !== query.get('state') || flow.clientId !== options.clientId || flow.apiOrigin !== base || flow.createdAt < Date.now() - 600000) throw new Error('oauth_state_mismatch');
+        const key = flowKey(query.get('state'));
+        const flow = readStorage(key); sessionStorage.removeItem(key);
+        if (!flow) throw new Error('oauth_state_missing');
+        if (flow.state !== query.get('state') || flow.clientId !== options.clientId || flow.apiOrigin !== base || flow.redirectUri !== options.redirectUri || flow.createdAt < Date.now() - 600000) throw new Error('oauth_state_mismatch');
         const code = query.get('code'), error = query.get('error'); query.delete('code'); query.delete('state'); query.delete('error'); history.replaceState(null, '', location.pathname + (query.size ? '?' + query : '') + location.hash);
         if (error) throw new Error(error);
-        const response = await fetch(base + '/oauth/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', client_id: options.clientId, code, code_verifier: flow.verifier, redirect_uri: flow.redirectUri }) });
-        const result = await response.json(); if (!response.ok) throw new Error(result.error); token = result.access_token;
-        // Access tokens stay in memory. Browser SDK does not persist refresh tokens.
+        await exchange({ grant_type: 'authorization_code', code, code_verifier: flow.verifier, redirect_uri: flow.redirectUri });
       }
+      function login() {
+        if (loginTask) return loginTask;
+        if (!options.clientId || !options.redirectUri) return Promise.reject(new Error('oauth_configuration_required'));
+        const mode = options.loginMode || 'redirect';
+        const redirectOrigin = new URL(options.redirectUri).origin;
+        if (mode === 'popup' && redirectOrigin !== location.origin) return Promise.reject(new Error('popup_callback_origin_mismatch'));
+        const verifier = random(), state = random(), key = flowKey(state);
+        const flow = { verifier, state, clientId: options.clientId, redirectUri: options.redirectUri, apiOrigin: base, createdAt: Date.now(), mode };
+        try { sessionStorage.setItem(key, JSON.stringify(flow)); } catch { return Promise.reject(new Error('oauth_storage_unavailable')); }
+        // Open synchronously in the click handler, before the async PKCE digest.
+        const popup = mode === 'popup' ? global.open('about:blank', '_blank', 'popup,width=520,height=720') : null;
+        if (mode === 'popup' && !popup) { sessionStorage.removeItem(key); return Promise.reject(new Error('popup_blocked')); }
+        loginTask = new Promise((resolve, reject) => {
+          let finished = false, interval, timeout;
+          const cleanup = () => {
+            clearInterval(interval); clearTimeout(timeout);
+            global.removeEventListener('message', receive);
+            sessionStorage.removeItem(key); cancelLogin = null;
+          };
+          const fail = error => { if (finished) return; finished = true; cleanup(); popup?.close(); reject(error); };
+          cancelLogin = () => fail(new Error('auth_cancelled'));
+          async function receive(event) {
+            if (event.origin !== redirectOrigin || event.source !== popup || event.data?.type !== 'saltoplay:oauth-result' || event.data.state !== state || finished) return;
+            if (typeof event.data.error !== 'string' && typeof event.data.code !== 'string') return;
+            finished = true; cleanup(); popup.close();
+            try {
+              if (event.data.error) throw new Error(event.data.error);
+              await exchange({ grant_type: 'authorization_code', code: event.data.code, code_verifier: verifier, redirect_uri: flow.redirectUri });
+              resolve({ authenticated: true, transport: 'external' });
+            } catch (error) { reject(error); }
+          }
+          if (popup) {
+            global.addEventListener('message', receive);
+            interval = setInterval(() => { if (popup.closed) fail(new Error('popup_closed')); }, 500);
+            timeout = setTimeout(() => fail(new Error('popup_timeout')), 600000);
+          }
+          challenge(verifier).then(digest => {
+            if (finished) return;
+            const url = new URL(base + '/oauth/authorize');
+            url.search = new URLSearchParams({ client_id: options.clientId, redirect_uri: options.redirectUri, response_type: 'code', code_challenge: digest, code_challenge_method: 'S256', state, scope: (options.scopes || ['profile:read', 'saltotag:read']).join(' ') }).toString();
+            if (popup) popup.location.href = url.toString();
+            else { location.assign(url); resolve(); }
+          }).catch(fail);
+        }).finally(() => { loginTask = null; });
+        return loginTask;
+      }
+      close = () => { closed = true; sessionEpoch++; cancelLogin?.(); };
       call = async (method, params = {}) => {
-        if (method === 'session.get') return { authenticated: Boolean(token), transport: 'external' };
+        if (closed) throw new Error('client_destroyed');
+        if (method === 'session.get') { await ensureToken(); return { authenticated: Boolean(token), transport: 'external' }; }
         if (method === 'auth.login') {
-          if (!options.clientId || !options.redirectUri) throw new Error('oauth_configuration_required');
-          const verifier = random(), state = random(); sessionStorage.setItem('saltoplay:oauth', JSON.stringify({ verifier, state, clientId: options.clientId, redirectUri: options.redirectUri, apiOrigin: base, createdAt: Date.now() }));
-          const url = new URL(base + '/oauth/authorize'); url.search = new URLSearchParams({ client_id: options.clientId, redirect_uri: options.redirectUri, response_type: 'code', code_challenge: await challenge(verifier), code_challenge_method: 'S256', state, scope: (options.scopes || ['profile:read', 'saltotag:read']).join(' ') }).toString(); location.assign(url); return;
+          return login();
         }
-        if (method === 'auth.logout') { token = null; return; }
+        if (method === 'auth.logout') { sessionEpoch++; cancelLogin?.(); clearSession(); return; }
         const routes = { 'player.getProfile': ['GET', '/me'], 'player.getSaltoTag': ['GET', '/me/saltotag'], 'achievements.list': ['GET', '/achievements'], 'achievements.requestUnlock': ['POST', '/achievements/unlock'], 'saves.get': ['GET', '/saves/' + encodeURIComponent(params.slot)], 'saves.set': ['PUT', '/saves/' + encodeURIComponent(params.slot)] };
         const route = routes[method]; if (!route) throw new Error('unsupported_method');
-        const response = await fetch(base + '/api/v1' + route[1], { method: route[0], headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, ...(route[0] !== 'GET' ? { body: JSON.stringify(params) } : {}) });
-        const result = await response.json(); if (!response.ok) throw Object.assign(new Error(result.message || result.error), { code: result.error }); return result;
+        await ensureToken();
+        if (!token) throw Object.assign(new Error('invalid_token'), { code: 'invalid_token' });
+        const requestToken = token;
+        const response = await fetch(base + '/api/v1' + route[1], { method: route[0], headers: { Authorization: 'Bearer ' + requestToken, 'Content-Type': 'application/json' }, ...(route[0] !== 'GET' ? { body: JSON.stringify(params) } : {}) });
+        const result = await response.json(); if (!response.ok) { if (response.status === 401 && token === requestToken) clearSession(); throw Object.assign(new Error(result.message || result.error), { code: result.error }); } return result;
       };
     }
     if (hosted && options.ui) await call('ui.configure', options.ui);
@@ -205,8 +312,8 @@
     let identityEpoch = 0;
     // Identity comes from the authorized API, never from game-provided greeting text.
     // Missing profile scopes must not prevent a game from initializing.
-    const welcomeEpoch = identityEpoch;
-    void (async () => {
+    async function showWelcome() {
+      const welcomeEpoch = identityEpoch;
       const session = await call('session.get');
       if (!session.authenticated || options.ui?.welcome === false) return;
       const [tag, profile] = await Promise.all([
@@ -217,7 +324,8 @@
       const identity = { ...profile, ...tag, avatar: profile?.avatar };
       if (hosted) await call('ui.welcome', identity);
       else ui.showWelcome(identity, { once: true });
-    })().catch(() => { /* Welcome is optional and never blocks authentication. */ });
+    }
+    void showWelcome().catch(() => { /* Welcome is optional and never blocks authentication. */ });
     return {
       player: { getProfile: () => call('player.getProfile'), getSaltoTag: () => call('player.getSaltoTag') },
       achievements: {
@@ -234,7 +342,15 @@
         get: async slot => { const r = await call('saves.get', { slot }); versions.set(slot, r.version); return r.data; },
         set: async (slot, data) => { if (!versions.has(slot)) { const current = await call('saves.get', { slot }); versions.set(slot, current.version); } const r = await call('saves.set', { slot, data, version: versions.get(slot) }); versions.set(slot, r.version); return r; },
       },
-      auth: { getSession: () => call('session.get'), login: () => call(hosted ? 'session.get' : 'auth.login'), logout: () => { identityEpoch++; return hosted ? Promise.resolve(close()) : call('auth.logout'); } },
+      auth: {
+        getSession: () => call('session.get'),
+        login: async () => {
+          const result = await call(hosted ? 'session.get' : 'auth.login');
+          void showWelcome().catch(() => {});
+          return result;
+        },
+        logout: () => { identityEpoch++; return hosted ? Promise.resolve(close()) : call('auth.logout'); },
+      },
       ui: {
         notify: async value => hosted ? call('ui.notify', typeof value === 'string' ? { message: value } : value) : ui.notify(value),
         showAchievement: async value => hosted ? call('ui.achievement', value) : ui.showAchievement(value),
@@ -244,5 +360,5 @@
       destroy: () => { identityEpoch++; close(); },
     };
   }
-  global.SaltoPlay = { init, ui, version: '0.3.0' };
+  global.SaltoPlay = { init, ui, version: '0.4.0', isOAuthCallback: false };
 })(window);
