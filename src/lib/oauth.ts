@@ -24,7 +24,7 @@ export async function exchangeCode(input: { clientId: string; secret?: string; c
   });
 }
 export async function rotateRefresh(clientId: string, refresh: string, secret?: string) {
-  const { client } = await approvedClient(clientId);
+  const { client, game } = await approvedClient(clientId);
   if (client.secretHash && !equal(client.secretHash, hash(secret || ''))) throw new HttpError(401, 'invalid_client');
   const result = await db().transaction(async tx => {
     const [row] = await tx.select().from(refreshTokens).where(and(eq(refreshTokens.hash, hash(refresh)), eq(refreshTokens.clientId, clientId))).for('update');
@@ -35,10 +35,12 @@ export async function rotateRefresh(clientId: string, refresh: string, secret?: 
       for (const token of familyRows) await tx.delete(tokens).where(eq(tokens.hash, token.hash));
       return null; // Commit reuse revocation before reporting invalid_grant.
     }
+    const [previousAccess] = await tx.select().from(tokens).where(eq(tokens.hash, row.accessHash));
+    if (!previousAccess || (previousAccess.buildId && previousAccess.buildId !== game.activeBuildId)) return null;
     const access = randomToken(), replacement = randomToken();
     await tx.update(refreshTokens).set({ used: true }).where(eq(refreshTokens.hash, row.hash));
     await tx.delete(tokens).where(eq(tokens.hash, row.accessHash));
-    await tx.insert(tokens).values({ hash: hash(access), playerId: row.playerId, gameId: row.gameId, clientId, scopes: row.scopes, expiresAt: new Date(Date.now() + 3600000) });
+    await tx.insert(tokens).values({ hash: hash(access), playerId: row.playerId, gameId: row.gameId, clientId, buildId: previousAccess.buildId, sessionHash: previousAccess.sessionHash, scopes: row.scopes, expiresAt: new Date(Date.now() + 3600000) });
     await tx.insert(refreshTokens).values({ hash: hash(replacement), accessHash: hash(access), family: row.family, playerId: row.playerId, gameId: row.gameId, clientId, scopes: row.scopes, expiresAt: row.expiresAt });
     return { access_token: access, refresh_token: replacement, token_type: 'Bearer', expires_in: 3600, scope: row.scopes.join(' ') };
   });

@@ -7,6 +7,7 @@ import { authenticateGame, scopeCheck } from '@/lib/game-auth';
 import { failure, HttpError, json } from '@/lib/http';
 import { runtimeOrigin } from '@/lib/runtime';
 import { appUrl } from '@/lib/security';
+import { getPlayerProgress } from '@/lib/player-progress';
 const slotSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/);
 export const ALL: APIRoute = async ({ request, params }) => {
   const headers: Record<string, string> = { Vary: 'Origin' };
@@ -19,9 +20,9 @@ export const ALL: APIRoute = async ({ request, params }) => {
     if (origin && !validOrigins.includes(origin)) throw new HttpError(403, 'origin_denied');
     if (origin) { headers['Access-Control-Allow-Origin'] = origin; headers['Access-Control-Expose-Headers'] = 'ETag'; }
     const path = params.path || '';
-    if (path === 'me' && request.method === 'GET') { scopeCheck(token.scopes, 'profile:read'); return json({ id: player.id, displayName: player.displayName, avatar: player.avatar }, 200, headers); }
+    if (path === 'me' && request.method === 'GET') { scopeCheck(token.scopes, 'profile:read'); return json({ id: player.id, displayName: player.displayName, avatar: player.avatar, saltoScore: (await getPlayerProgress(player.id)).score }, 200, headers); }
     if (path === 'me/saltotag' && request.method === 'GET') { scopeCheck(token.scopes, 'saltotag:read'); return json({ id: player.id, tag: player.tag, displayName: player.displayName }, 200, headers); }
-    if (path === 'achievements' && request.method === 'GET') { scopeCheck(token.scopes, 'achievements:read'); const rows = await db().select({ achievement: achievements, unlockedAt: unlocks.createdAt }).from(achievements).leftJoin(unlocks, and(eq(unlocks.achievementId, achievements.id), eq(unlocks.playerId, player.id))).where(eq(achievements.gameId, game.id)); return json(rows.map(r => ({ ...r.achievement, unlockedAt: r.unlockedAt })), 200, headers); }
+    if (path === 'achievements' && request.method === 'GET') { scopeCheck(token.scopes, 'achievements:read'); const rows = await db().select({ achievement: achievements, unlockedAt: unlocks.createdAt, scoreAwarded: unlocks.scoreAwarded }).from(achievements).leftJoin(unlocks, and(eq(unlocks.achievementId, achievements.id), eq(unlocks.playerId, player.id))).where(eq(achievements.gameId, game.id)); return json(rows.map(r => ({ ...r.achievement, unlockedAt: r.unlockedAt, scoreAwarded: r.scoreAwarded ?? 0 })), 200, headers); }
     if (path === 'achievements/unlock' && request.method === 'POST') {
       scopeCheck(token.scopes, 'achievements:write');
       const { key } = z.object({ key: z.string().min(1).max(80) }).parse(await request.json());

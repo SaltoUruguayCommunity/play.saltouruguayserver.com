@@ -1,7 +1,20 @@
-/* SaltoPlay SDK v0.4 — popup OAuth PKCE / tab sessions / hosted MessageChannel. */
+/* SaltoPlay SDK v0.6 — native launch / popup OAuth PKCE / hosted MessageChannel. */
 (function (global) {
   'use strict';
-  if (global.SaltoPlay?.version === '0.4.0') return;
+  if (global.SaltoPlay?.version === '0.6.0') return;
+  // Consume immediately, before init or any asynchronous work. Native credentials
+  // stay in memory and never enter the OAuth sessionStorage persistence path.
+  const launchFragment = new URLSearchParams(location.hash.slice(1));
+  let nativeLaunchToken = null, nativeLaunchRefresh = null;
+  const nativeClientId = launchFragment.get('play_client_id');
+  const nativeExpiresIn = Number(launchFragment.get('play_expires_in') || 300);
+  const hasNativeLaunch = launchFragment.has('play_access_token');
+  if (hasNativeLaunch) {
+    nativeLaunchToken = launchFragment.get('play_access_token');
+    nativeLaunchRefresh = launchFragment.get('play_refresh_token');
+    for (const key of ['play_access_token', 'play_refresh_token', 'play_client_id', 'play_expires_in']) launchFragment.delete(key);
+    history.replaceState(null, '', location.pathname + location.search + (launchFragment.size ? '#' + launchFragment.toString() : ''));
+  }
   const flowKey = state => 'saltoplay:oauth:' + state;
   const readStorage = key => { try { return JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { return null; } };
   // The registered game callback loads this same SDK. Only the authorization
@@ -19,7 +32,7 @@
     sessionStorage.removeItem(flowKey(callbackState));
     callbackQuery.delete('code'); callbackQuery.delete('error'); callbackQuery.delete('state');
     history.replaceState(null, '', location.pathname + (callbackQuery.size ? '?' + callbackQuery : '') + location.hash);
-    global.SaltoPlay = { version: '0.4.0', isOAuthCallback: true };
+    global.SaltoPlay = { version: '0.6.0', isOAuthCallback: true };
     if (global.opener) global.close();
     else {
       const message = document.createElement('p');
@@ -179,9 +192,16 @@
   const random = () => { const b = crypto.getRandomValues(new Uint8Array(32)); return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); };
   async function challenge(value) { const b = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))); return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); }
   async function init(options = {}) {
+    const nativeLaunch = hasNativeLaunch;
+    const launchToken = nativeLaunchToken;
+    const launchRefresh = nativeLaunchRefresh;
+    const clientId = nativeLaunch ? nativeClientId : options.clientId;
+    if (nativeLaunch && !/^[A-Za-z0-9_-]{43}$/.test(launchToken || '')) throw Object.assign(new Error('invalid_launch_token'), { code: 'invalid_launch_token' });
+    if (nativeLaunch && (!Number.isFinite(nativeExpiresIn) || nativeExpiresIn <= 0 || nativeExpiresIn > 3600 || (launchRefresh && (!/^[A-Za-z0-9_-]{43}$/.test(launchRefresh) || !/^[a-f0-9-]{36}$/i.test(clientId || ''))))) throw new Error('invalid_launch_session');
+    if (nativeLaunch) { nativeLaunchToken = null; nativeLaunchRefresh = null; }
     if (options.ui) ui.configure(options.ui);
     let call, close = () => {}, closed = false;
-    const hosted = global.parent !== global && options.transport !== 'external';
+    const hosted = !nativeLaunch && global.parent !== global && options.transport !== 'external';
     if (hosted) {
       const parentOrigin = options.portalOrigin || (document.referrer ? new URL(document.referrer).origin : null);
       if (!parentOrigin) throw new Error('portal_origin_required');
@@ -199,15 +219,15 @@
       close = () => { closed = true; port.close(); for (const p of pending.values()) { clearTimeout(p.timeout); p.reject(new Error('bridge_closed')); } pending.clear(); };
     } else {
       const base = (options.apiOrigin || 'https://play.saltouruguayserver.com').replace(/\/$/, '');
-      const sessionKey = 'saltoplay:session:' + JSON.stringify([base, options.clientId, options.redirectUri]);
-      const saved = options.persistence === 'memory' ? null : readStorage(sessionKey);
-      let token = options.accessToken || saved?.accessToken;
-      let refreshToken = options.accessToken ? null : saved?.refreshToken;
-      let expiresAt = options.accessToken ? Infinity : saved?.expiresAt || 0;
+      const sessionKey = 'saltoplay:session:' + JSON.stringify([base, clientId, options.redirectUri]);
+      const saved = nativeLaunch || options.persistence === 'memory' ? null : readStorage(sessionKey);
+      let token = launchToken || options.accessToken || saved?.accessToken;
+      let refreshToken = nativeLaunch ? launchRefresh : options.accessToken ? null : saved?.refreshToken;
+      let expiresAt = nativeLaunch ? Date.now() + nativeExpiresIn * 1000 : options.accessToken ? Infinity : saved?.expiresAt || 0;
       let renewal, loginTask, cancelLogin;
       let sessionEpoch = 0;
       function persist() {
-        if (options.persistence === 'memory' || options.accessToken) return;
+        if (nativeLaunch || options.persistence === 'memory' || options.accessToken) return;
         try {
           if (token) sessionStorage.setItem(sessionKey, JSON.stringify({ accessToken: token, refreshToken, expiresAt }));
           else sessionStorage.removeItem(sessionKey);
@@ -216,7 +236,7 @@
       function clearSession() { token = null; refreshToken = null; expiresAt = 0; persist(); }
       async function exchange(params) {
         const epoch = sessionEpoch;
-        const response = await fetch(base + '/oauth/token', { method: 'POST', body: new URLSearchParams({ client_id: options.clientId, ...params }) });
+        const response = await fetch(base + '/oauth/token', { method: 'POST', body: new URLSearchParams({ client_id: clientId, ...params }) });
         const result = await response.json();
         if (!response.ok) throw Object.assign(new Error(result.error || 'oauth_exchange_failed'), { code: result.error });
         if (closed || epoch !== sessionEpoch) throw new Error('auth_cancelled');
@@ -235,23 +255,27 @@
         }
       }
       const query = new URLSearchParams(location.search);
-      if (query.has('code') || query.has('error')) {
+      if (!nativeLaunch && (query.has('code') || query.has('error'))) {
         const key = flowKey(query.get('state'));
         const flow = readStorage(key); sessionStorage.removeItem(key);
         if (!flow) throw new Error('oauth_state_missing');
-        if (flow.state !== query.get('state') || flow.clientId !== options.clientId || flow.apiOrigin !== base || flow.redirectUri !== options.redirectUri || flow.createdAt < Date.now() - 600000) throw new Error('oauth_state_mismatch');
+        if (flow.state !== query.get('state') || flow.clientId !== clientId || flow.apiOrigin !== base || flow.redirectUri !== options.redirectUri || flow.createdAt < Date.now() - 600000) throw new Error('oauth_state_mismatch');
         const code = query.get('code'), error = query.get('error'); query.delete('code'); query.delete('state'); query.delete('error'); history.replaceState(null, '', location.pathname + (query.size ? '?' + query : '') + location.hash);
         if (error) throw new Error(error);
         await exchange({ grant_type: 'authorization_code', code, code_verifier: flow.verifier, redirect_uri: flow.redirectUri });
       }
       function login() {
+        if (nativeLaunch) return ensureToken().then(() => {
+          if (token) return { authenticated: true, transport: 'native' };
+          throw Object.assign(new Error('native_auth_required'), { code: 'native_auth_required' });
+        });
         if (loginTask) return loginTask;
-        if (!options.clientId || !options.redirectUri) return Promise.reject(new Error('oauth_configuration_required'));
+        if (!clientId || !options.redirectUri) return Promise.reject(new Error('oauth_configuration_required'));
         const mode = options.loginMode || 'redirect';
         const redirectOrigin = new URL(options.redirectUri).origin;
         if (mode === 'popup' && redirectOrigin !== location.origin) return Promise.reject(new Error('popup_callback_origin_mismatch'));
         const verifier = random(), state = random(), key = flowKey(state);
-        const flow = { verifier, state, clientId: options.clientId, redirectUri: options.redirectUri, apiOrigin: base, createdAt: Date.now(), mode };
+        const flow = { verifier, state, clientId: clientId, redirectUri: options.redirectUri, apiOrigin: base, createdAt: Date.now(), mode };
         try { sessionStorage.setItem(key, JSON.stringify(flow)); } catch { return Promise.reject(new Error('oauth_storage_unavailable')); }
         // Open synchronously in the click handler, before the async PKCE digest.
         const popup = mode === 'popup' ? global.open('about:blank', '_blank', 'popup,width=520,height=720') : null;
@@ -283,7 +307,7 @@
           challenge(verifier).then(digest => {
             if (finished) return;
             const url = new URL(base + '/oauth/authorize');
-            url.search = new URLSearchParams({ client_id: options.clientId, redirect_uri: options.redirectUri, response_type: 'code', code_challenge: digest, code_challenge_method: 'S256', state, scope: (options.scopes || ['profile:read', 'saltotag:read']).join(' ') }).toString();
+            url.search = new URLSearchParams({ client_id: clientId, redirect_uri: options.redirectUri, response_type: 'code', code_challenge: digest, code_challenge_method: 'S256', state, scope: (options.scopes || ['profile:read', 'saltotag:read']).join(' ') }).toString();
             if (popup) popup.location.href = url.toString();
             else { location.assign(url); resolve(); }
           }).catch(fail);
@@ -293,7 +317,7 @@
       close = () => { closed = true; sessionEpoch++; cancelLogin?.(); };
       call = async (method, params = {}) => {
         if (closed) throw new Error('client_destroyed');
-        if (method === 'session.get') { await ensureToken(); return { authenticated: Boolean(token), transport: 'external' }; }
+        if (method === 'session.get') { await ensureToken(); return { authenticated: Boolean(token), transport: nativeLaunch ? 'native' : 'external' }; }
         if (method === 'auth.login') {
           return login();
         }
@@ -360,5 +384,5 @@
       destroy: () => { identityEpoch++; close(); },
     };
   }
-  global.SaltoPlay = { init, ui, version: '0.4.0', isOAuthCallback: false };
+  global.SaltoPlay = { init, ui, version: '0.6.0', isOAuthCallback: false };
 })(window);

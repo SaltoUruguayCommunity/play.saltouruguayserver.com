@@ -29,6 +29,8 @@ Para detener Astro: `pnpm exec astro dev stop`. Para el runtime, Ctrl+C en su te
 
 El acceso usa Authorization Code + PKCE S256. La sesión local es HttpOnly, host-only y Secure en HTTPS. OneTap usa el modo custom-auth del SDK SaltoUruguayServer y desemboca en ese mismo flujo; se puede desactivar con `SUS_ONETAP=false`. No se confía en el perfil ni en tokens recibidos del widget.
 
+Las apps nativas pueden intercambiar directamente su access token de SaltoUruguayServer por un token limitado al juego mediante `POST /api/native/token`. El SDK 0.6 recoge `#play_access_token` sin cookies ni sesión intermedia. Ver [integración nativa](docs/native-session.md) para el consentimiento y el contrato.
+
 ### Cambios de esquema
 
 ```sh
@@ -74,7 +76,7 @@ Producción necesita:
 - Respaldos del volumen y Postgres coordinados. El archivo `published.json` es un puntero del runtime; no contiene credenciales.
 - Almacenamiento S3/CDN puede sustituir esta implementación después; todavía no hay adaptador S3.
 
-Límites de paquetes: 25 MB ZIP / 100 MB extraído / 30 MB por archivo / 1500 entradas / 10 builds por juego. Assets estáticos y WASM de una hebra; nada de backends o ejecutables nativos. CSP bloquea red externa, service workers y subframes. No hay un antivirus externo conectado; la validación estructural no certifica que el código de un juego sea confiable.
+Límites de paquetes: 25 MB ZIP / 100 MB extraído / 30 MB por archivo / 1500 entradas / 10 builds por juego. Assets estáticos y WASM de una hebra; nada de backends o ejecutables nativos. CSP permite conexiones al propio origen y a /api/v1/ y /oauth/token del portal para las partidas nativas; bloquea las demás conexiones externas, service workers y subframes. No hay un antivirus externo conectado; la validación estructural no certifica que el código de un juego sea confiable.
 
 ## Validación
 

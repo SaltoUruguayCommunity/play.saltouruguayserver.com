@@ -22,6 +22,13 @@
       "when": 1792746518789,
       "tag": "0002_community-servers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793234073270,
+      "tag": "0003_stormy_absorbing_man",
+      "breakpoints": true
     }
   ]
 }
