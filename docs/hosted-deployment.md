@@ -5,7 +5,7 @@
 - El portal Astro autoriza subidas y gestiona revisiones/publicaciones.
 - El navegador sube los ZIP e imágenes directamente a un bucket de lectura pública con una URL PUT firmada de 15 minutos. En local, usa el endpoint autenticado de desarrollo.
 - `pnpm hosted:worker` procesa las colas de PostgreSQL fuera de Vercel. `pnpm hosted:worker --once` vacía la cola y termina. No migra ni inicia el portal.
-- `pnpm runtime` sirve archivos desde el mismo bucket, bajo un origen independiente por juego. Cada instancia necesita acceso de lectura a la base dedicada y al almacenamiento. Configurá el directorio de trabajo en la raíz de este proyecto.
+- `pnpm runtime` valida autorización y redirige a la URL pública del CDN, o sirve archivos desde el bucket en desarrollo local. Bajo un origen independiente por juego. Cada instancia necesita acceso de lectura a la base dedicada y al almacenamiento. Configurá el directorio de trabajo en la raíz de este proyecto.
 
 ## Almacenamiento S3 / R2
 
@@ -23,7 +23,7 @@ HOSTED_BASE_DOMAIN debe estar en un dominio registrable distinto del portal, con
 
 HOSTED_PREVIEW_SECRET debe ser un secreto aleatorio de al menos 32 caracteres, igual en portal y runtime. Las vistas previas vencen a los 15 minutos y usan una ruta firmada para que los assets relativos funcionen. No conceden sesión del portal ni permisos sobre los datos del jugador.
 
-El runtime respeta Content-Type, nosniff, CSP, frame-ancestors y Range para audio/vídeo. Los documentos HTML y previews no se cachean. Los assets de una versión publicada son inmutables. La configuración del proveedor no despliega por sí sola el runtime: hay que alojar este proceso (o implementar un gateway equivalente) con acceso a bucket y PostgreSQL.
+El runtime valida autorización y redirige (302, no-store) a la URL pública del CDN; el navegador carga el contenido desde el CDN con sus propios encabezados. Sin S3_PUBLIC_URL (desarrollo local), el runtime sirve los archivos directamente aplicando Content-Type, nosniff, CSP, frame-ancestors y Range para audio/vídeo. En ese modo, los documentos HTML y previews no se cachean y los assets de una versión publicada son inmutables. La configuración del proveedor no despliega por sí sola el runtime: hay que alojar este proceso (o implementar un gateway equivalente) con acceso a bucket y PostgreSQL.
 
 ## Versiones
 
@@ -64,12 +64,12 @@ Las URLs usan el identificador del intento de procesamiento y son inmutables. Co
 
 Elegí S3_PREFIX antes de empezar a subir archivos: cambiarlo no mueve objetos existentes. Cambiar S3_PUBLIC_URL o MEDIA_CDN_URL no reescribe los enlaces ya seleccionados en la ficha; volvé a seleccionar las imágenes desde la consola para guardar sus nuevas URLs. La regla de expiración de originales debe apuntar a S3_PREFIX + incoming/, nunca a media/ ni games/.
 
-Los juegos HTML/JS, sus assets y las previews siguen usando el origen aislado por juego y sus comprobaciones. Una CDN delante del runtime debe preservar Host, CSP y los encabezados de caché y no cachear previews ni documentos HTML.
+Los juegos HTML/JS, sus assets y las previews pasan por el runtime para validar autorización antes de redirigir al CDN. El redirect usa no-store: una CDN delante del runtime no debe cachear las respuestas de redirect. Configurá Content-Type, nosniff y caché en el CDN u objeto según corresponda.
 
 ## Lectura pública y publicación
 
-S3_PUBLIC_URL permite que el runtime lea los archivos mediante HTTP/CDN, incluyendo solicitudes Range, mientras los uploads y el procesador siguen usando la API S3 autenticada. El CDN debe soportar Range para audio/vídeo. No se fuerza ninguna ACL por objeto: el acceso público se define a nivel de bucket/prefijo o dominio, compatible con R2 y S3.
+S3_PUBLIC_URL permite que el runtime redirija a la URL pública del CDN en vez de servir el contenido. El CDN debe soportar Range para audio/vídeo. Las subidas y el procesador siguen usando la API S3 autenticada. No se fuerza ninguna ACL por objeto: el acceso público se define a nivel de bucket/prefijo o dominio, compatible con R2 y S3.
 
 La revisión y activeBuildId determinan qué versión ofrece el portal. No son un mecanismo de confidencialidad del bucket público: una URL directa puede leer un archivo de una versión no publicada y el vencimiento de una preview solo afecta a la ruta del runtime. Suspender un juego bloquea sus sesiones/API y las rutas del runtime, pero no elimina los archivos públicos ni sus copias en caché.
 
-Los juegos siguen ejecutándose en el runtime aislado por juego para conservar CSP, la integración y la separación del portal. No apuntes S3_PUBLIC_URL al origen del portal. No se guardan tokens, credenciales ni datos privados de jugadores en los archivos del bucket.
+Los juegos siguen pasando por el runtime aislado por juego para validar autorización antes de redirigir al CDN. No apuntes S3_PUBLIC_URL al origen del portal. No se guardan tokens, credenciales ni datos privados de jugadores en los archivos del bucket.

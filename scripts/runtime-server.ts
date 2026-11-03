@@ -8,6 +8,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../src/db';
 import { games, builds, gameMedia, releases } from '../src/db/schema';
 import { openObject, buildKey } from '../src/lib/object-storage';
+import { publicObjectUrl } from '../src/lib/public-assets';
 import { mime } from '../src/lib/hosted-storage';
 import { verifyPreviewToken } from '../src/lib/hosted-preview';
 
@@ -58,6 +59,8 @@ const server = createServer(async (req, res) => {
    const file = row.file; if (!file) throw new Error('File not found');
    key = buildKey(gameId, buildId, row.artifactId, name); bytes = file.bytes; type = file.type;
   }
+  const publicUrl = publicObjectUrl(key);
+  if (publicUrl) { res.writeHead(302, { 'Cache-Control': 'no-store', Location: publicUrl }).end(); return; }
   let range: { start: number; end: number } | undefined;
   if (req.headers.range) {
    const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);

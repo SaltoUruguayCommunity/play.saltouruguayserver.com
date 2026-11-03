@@ -3,12 +3,23 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream } from 'node:fs';
 import { mkdir, writeFile, readFile, stat, unlink } from 'node:fs/promises';
 import { resolve, dirname, sep } from 'node:path';
-import { publicObjectUrl } from './public-assets';
 
 export const MAX_ZIP_BYTES = 25 * 1024 * 1024;
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 export const storageRoot = () => resolve(process.env.HOSTED_STORAGE_PATH || '.data/hosted');
 export const cloudStorage = () => Boolean(process.env.S3_BUCKET);
+function normalizeS3Endpoint(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error('invalid');
+    return parsed.origin;
+  } catch {
+    throw new Error('S3_ENDPOINT must be a valid HTTP(S) URL or hostname.');
+  }
+}
 /** Physical bucket namespace. Stored artifact keys remain relative to this prefix. */
 export function storageKey(key: string) {
   if (!key || key.startsWith('/') || key.includes('\\') || key.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('Invalid object key');
@@ -23,7 +34,7 @@ function s3() {
   if (!process.env.S3_BUCKET) throw new Error('S3_BUCKET is required');
   return client ??= new S3Client({
     requestChecksumCalculation: 'WHEN_REQUIRED', responseChecksumValidation: 'WHEN_REQUIRED',
-    region: process.env.S3_REGION || 'us-east-1', endpoint: process.env.S3_ENDPOINT || undefined,
+    region: process.env.S3_REGION || 'us-east-1', endpoint: normalizeS3Endpoint(process.env.S3_ENDPOINT),
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
     credentials: process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY ? { accessKeyId: process.env.S3_ACCESS_KEY_ID, secretAccessKey: process.env.S3_SECRET_ACCESS_KEY } : undefined,
   });
@@ -73,21 +84,8 @@ export const buildKey = (gameId: string, buildId: string, artifactId: string, na
 export const imageKey = (gameId: string, id: string, artifactId: string) => `media/${gameId}/${id}/${artifactId}.webp`;
 
 export async function openObject(key: string, range?: { start: number; end: number }): Promise<AsyncIterable<Uint8Array>> {
- if (!cloudStorage()) return createReadStream(localPath(key), range);
- const publicUrl = publicObjectUrl(key);
- if (publicUrl) {
-  const response = await fetch(publicUrl, { headers: range ? { Range: 'bytes=' + range.start + '-' + range.end } : {} });
-  if (!response.ok || !response.body || (range && response.status !== 206)) {
-   await response.body?.cancel();
-   throw new Error('Public object unavailable or Range requests unsupported');
-  }
-  const reader = response.body.getReader();
-  return (async function* () {
-   try { while (true) { const { value, done } = await reader.read(); if (done) return; yield value; } }
-   finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-  })();
- }
- const result = await s3().send(new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: storageKey(key), ...(range ? { Range: 'bytes=' + range.start + '-' + range.end } : {}) }));
- if (!result.Body) throw new Error('Object unavailable');
- return result.Body as AsyncIterable<Uint8Array>;
+  if (!cloudStorage()) return createReadStream(localPath(key), range);
+  const result = await s3().send(new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: storageKey(key), ...(range ? { Range: 'bytes=' + range.start + '-' + range.end } : {}) }));
+  if (!result.Body) throw new Error('Object unavailable');
+  return result.Body as AsyncIterable<Uint8Array>;
 }
