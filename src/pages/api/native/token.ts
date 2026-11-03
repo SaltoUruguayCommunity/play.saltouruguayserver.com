@@ -21,8 +21,8 @@ export const POST: APIRoute = async ({ request }) => {
     let clientId: string | null = null;
     let launchUrl: string;
     if (game.type === 'hosted') {
-      const [build] = await db().select().from(builds).where(and(eq(builds.id, game.activeBuildId || '00000000-0000-0000-0000-000000000000'), eq(builds.gameId, game.id), eq(builds.status, 'published')));
-      if (!build) throw new HttpError(404, 'game_unavailable');
+      const [build] = await db().select().from(builds).where(and(eq(builds.id, game.activeBuildId || '00000000-0000-0000-0000-000000000000'), eq(builds.gameId, game.id), eq(builds.status, 'approved')));
+      if (!build?.artifactId) throw new HttpError(404, 'game_unavailable');
       launchUrl = `${runtimeOrigin(game.id)}/${build.id}/${build.entrypoint}`;
     } else {
       if (!input.clientId) throw new HttpError(400, 'client_id_required');

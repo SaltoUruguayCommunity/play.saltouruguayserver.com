@@ -1,8 +1,14 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
-export const storageRoot = () => resolve(process.env.HOSTED_STORAGE_PATH || '.data/hosted');
-export async function storeBuild(gameId: string, buildId: string, files: Map<string, Buffer>) {
-  const root = resolve(storageRoot(), gameId, buildId);
-  for (const [name, data] of files) { const target = resolve(root, name); if (!target.startsWith(root + (process.platform === 'win32' ? '\\' : '/'))) throw new Error('Invalid storage path'); await mkdir(dirname(target), { recursive: true }); await writeFile(target, data, { flag: 'wx' }); }
+import { putObject, buildKey } from './object-storage';
+import { extname } from 'node:path';
+export const mime: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.ico': 'image/x-icon', '.wasm': 'application/wasm', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.mp4': 'video/mp4', '.webm': 'video/webm', '.txt': 'text/plain', '.data': 'application/octet-stream', '.bin': 'application/octet-stream', '.map': 'application/json',
+};
+export async function storeBuild(gameId: string, buildId: string, artifactId: string, files: Map<string, Buffer>) {
+  const manifest: Record<string, { bytes: number; type: string }> = {};
+  for (const [name, body] of files) {
+    const type = mime[extname(name).toLowerCase()] || 'application/octet-stream';
+    await putObject(buildKey(gameId, buildId, artifactId, name), body, type);
+    manifest[name] = { bytes: body.length, type };
+  }
+  return manifest;
 }
-export async function publishBuild(gameId: string, buildId: string) { const root = resolve(storageRoot(), gameId); await mkdir(root, { recursive: true }); await writeFile(resolve(root, 'published.json'), JSON.stringify({ buildId }), 'utf8'); }

@@ -12,7 +12,7 @@ export const GET: APIRoute = async () => {
     return json({ games: published.flatMap(game => {
       const client = publicClients.find(c => c.gameId === game.id && game.url && safeWebUrl(game.url) && c.redirectUris.some(uri => new URL(uri).origin === new URL(game.url!).origin) && c.scopes.some(scope => (scopes as readonly string[]).includes(scope)));
       if (game.type === 'hosted' ? !game.activeBuildId : !client) return [];
-      return [{ id: game.id, title: game.title, description: game.description, genre: game.genre, cover: game.cover, type: game.type, clientId: game.type === 'external' ? client!.id : null }];
+      return [{ id: game.id, title: game.title, description: game.description, genre: game.genre, cover: game.cover, icon: game.icon, screenshots: game.screenshots, type: game.type, clientId: game.type === 'external' ? client!.id : null }];
     }) });
   } catch (error) { return failure(error); }
 };

@@ -13,7 +13,8 @@
     "runtime": "tsx scripts/runtime-server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "hosted:worker": "tsx scripts/hosted-worker.ts"
   },
   "dependencies": {
     "@astrojs/vercel": "^11.0.16",

@@ -1,6 +1,6 @@
 import { and, eq, gt } from 'drizzle-orm';
 import { db } from '@/db';
-import { clients, games, codes, tokens, refreshTokens } from '@/db/schema';
+import { clients, games, codes, tokens, refreshTokens, builds } from '@/db/schema';
 import { equal, hash, pkce, randomToken } from './security';
 import { HttpError } from './http';
 export async function approvedClient(id: string) {
@@ -36,7 +36,8 @@ export async function rotateRefresh(clientId: string, refresh: string, secret?: 
       return null; // Commit reuse revocation before reporting invalid_grant.
     }
     const [previousAccess] = await tx.select().from(tokens).where(eq(tokens.hash, row.accessHash));
-    if (!previousAccess || (previousAccess.buildId && previousAccess.buildId !== game.activeBuildId)) return null;
+    if (!previousAccess) return null;
+    if (previousAccess.buildId) { const [build] = await tx.select({ id: builds.id }).from(builds).where(and(eq(builds.id, previousAccess.buildId), eq(builds.gameId, game.id), eq(builds.status, 'approved'))); if (!build) return null; }
     const access = randomToken(), replacement = randomToken();
     await tx.update(refreshTokens).set({ used: true }).where(eq(refreshTokens.hash, row.hash));
     await tx.delete(tokens).where(eq(tokens.hash, row.accessHash));
