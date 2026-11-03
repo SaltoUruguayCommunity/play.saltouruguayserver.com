@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
   if (action === 'remove') { await deleteObject(sourceKey(gameId, id)).catch(() => {}); if (artifact) await deleteObject(artifact).catch(() => {}); }
   if (retry) {
    const result = await processMediaInline(gameId, id, retry.kind, retry.sourceBytes);
-   return json({ ok: true, status: result.status, ...(result.error ? { error: result.error } : {}) }, result.status === 'ready' ? 200 : 422);
+   return json({ ok: true, status: result.status, ...(result.error ? { error: result.error } : {}) });
   }
   return json({ ok: true });
  } catch (error) { return failure(error); }

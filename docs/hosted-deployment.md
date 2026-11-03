@@ -4,7 +4,7 @@
 
 - El portal Astro autoriza subidas y gestiona revisiones/publicaciones.
 - El navegador sube los ZIP e imágenes directamente a un bucket de lectura pública con una URL PUT firmada de 15 minutos. En local, usa el endpoint autenticado de desarrollo.
-- `pnpm hosted:worker` procesa las colas de PostgreSQL fuera de Vercel. `pnpm hosted:worker --once` vacía la cola y termina. No migra ni inicia el portal.
+- `pnpm hosted:worker` procesa la cola de builds de PostgreSQL fuera de Vercel. `pnpm hosted:worker --once` vacía la cola y termina. No migra ni inicia el portal. Las imágenes se procesan inline en el portal al confirmar la subida; no necesitan worker.
 - `pnpm runtime` valida autorización y redirige a la URL pública del CDN, o sirve archivos desde el bucket en desarrollo local. Bajo un origen independiente por juego. Cada instancia necesita acceso de lectura a la base dedicada y al almacenamiento. Configurá el directorio de trabajo en la raíz de este proyecto.
 
 ## Almacenamiento S3 / R2
@@ -35,11 +35,11 @@ Los dueños pueden publicar versiones aprobadas y restaurar versiones que ya se 
 
 ## Imágenes
 
-Hasta 8 MB por imagen. PNG, JPEG y WebP estáticos; se decodifican con límite de píxeles y se convierten a WebP sin conservar metadatos. Iconos: mínimo 128 × 128, salida 512 × 512. Banners/capturas: mínimo 320 × 180 y salida máxima 1920 × 1080. Se pueden seleccionar icono, banner y hasta ocho capturas; se aplican al catálogo y la ficha pública después del procesamiento.
+Hasta 8 MB por imagen. PNG, JPEG y WebP estáticos; se decodifican con límite de píxeles y se convierten a WebP sin conservar metadatos. Iconos: mínimo 128 × 128, salida 512 × 512. Banners/capturas: mínimo 320 × 180 y salida máxima 1920 × 1080. Se procesan inline en el portal al confirmar la subida o reintentar desde la consola; no requieren worker. Se pueden seleccionar icono, banner y hasta ocho capturas; se aplican al catálogo y la ficha pública después del procesamiento.
 
 ## Operación
 
-El procesador reclama filas con FOR UPDATE SKIP LOCKED, permite varias instancias y renueva su lease. Un proceso interrumpido sin latidos durante diez minutos se marca fallido. El propietario puede reintentarlo desde la consola. No hay un servicio de procesamiento activado por guardar código: desplegá y supervisá el worker aparte.
+El worker reclama builds con FOR UPDATE SKIP LOCKED, permite varias instancias y renueva su lease. Un proceso interrumpido sin latidos durante diez minutos se marca fallido. El propietario puede reintentarlo desde la consola. No hay un servicio de procesamiento activado por guardar código: desplegá y supervisá el worker aparte. Las imágenes se procesan inline en el portal y no usan esta cola.
 
 Aplicá las migraciones con pnpm db:migrate contra la base dedicada de SaltoPlay antes de iniciar las nuevas versiones del portal, worker y runtime. No uses la base de la web principal.
 

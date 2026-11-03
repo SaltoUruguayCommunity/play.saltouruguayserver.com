@@ -61,7 +61,9 @@ const date = (value: Date) => value.toLocaleString('es-UY', { timeZone: 'America
      const target = new URL(upload.url, location.origin);
      const response = await fetch(target, { method: 'PUT', headers: upload.headers, body: file, credentials: target.origin === location.origin ? 'same-origin' : 'omit' });
      if (!response.ok) throw new Error('Falló la subida. Revisá la configuración CORS del almacenamiento e intentá de nuevo.');
-     await api('uploads/complete', { id: upload.id, kind: upload.kind });
+     if (upload.kind === 'media') say('Procesando ' + file.name + '…');
+     const complete = await api('uploads/complete', { id: upload.id, kind: upload.kind });
+     if (complete.status === 'failed') say((complete.error || 'El procesamiento falló.') + ' — ' + file.name);
     }
     location.reload();
    } catch (error) { say(error instanceof Error ? error.message : 'Error de conexión.'); button.disabled = false; }

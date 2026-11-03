@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
    const stored = await headObject(sourceKey(gameId, id));
    if (stored.bytes !== row.sourceBytes) throw new HttpError(400, 'size_mismatch');
    const result = await processMediaInline(gameId, id, row.kind, row.sourceBytes);
-   return json({ ok: true, status: result.status, ...(result.error ? { error: result.error } : {}) }, result.status === 'ready' ? 200 : 422);
+   return json({ ok: true, status: result.status, ...(result.error ? { error: result.error } : {}) });
   }
   const [row] = await db().select().from(builds).where(and(eq(builds.id, id), eq(builds.gameId, gameId)));
   if (!row) throw new HttpError(404, 'not_found');
