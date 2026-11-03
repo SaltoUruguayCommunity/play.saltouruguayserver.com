@@ -1,12 +1,11 @@
 import 'dotenv/config';
 import { createHash, randomUUID } from 'node:crypto';
-import sharp from 'sharp';
 import { eq, and, lt } from 'drizzle-orm';
 import { db } from '../src/db';
-import { builds, gameMedia } from '../src/db/schema';
+import { builds } from '../src/db/schema';
 import { unpack } from '../src/lib/archive';
 import { storeBuild } from '../src/lib/hosted-storage';
-import { getObject, putObject, deleteObject, sourceKey, imageKey, MAX_ZIP_BYTES, MAX_IMAGE_BYTES } from '../src/lib/object-storage';
+import { getObject, deleteObject, sourceKey, MAX_ZIP_BYTES } from '../src/lib/object-storage';
 
 let stopping = false;
 process.on('SIGTERM', () => { stopping = true; });
