@@ -25,7 +25,7 @@ export async function serveHostedRequest(request: Request, localDemo = false): P
     const headers = new Headers({
       'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-      'Content-Security-Policy': `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ${portal}/api/v1/ ${portal}/oauth/token; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors ${portal}`,
+      'Content-Security-Policy': `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${portal}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ${portal}/api/v1/ ${portal}/oauth/token; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors ${portal}`,
       'Cache-Control': 'private, no-store', 'CDN-Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'no-store',
     });
     if (pathname === '/sdk/saltoplay.js' || (demo && pathname.startsWith('/demo/'))) {
