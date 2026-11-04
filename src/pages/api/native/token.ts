@@ -46,7 +46,8 @@ export const POST: APIRoute = async ({ request }) => {
         // OAuth refresh rotation without coupling it to the main app session.
         const key = hash(`saltoplay:native:${game.id}`);
         clientId = `${key.slice(0, 8)}-${key.slice(8, 12)}-4${key.slice(13, 16)}-a${key.slice(17, 20)}-${key.slice(20, 32)}`;
-        await tx.insert(clients).values({ id: clientId, gameId: game.id, name: 'SaltoPlay Native', scopes: requested, redirectUris: [runtimeOrigin(game.id) + '/native-callback'] }).onConflictDoNothing();
+        const redirectUris = [runtimeOrigin(game.id) + '/native-callback'];
+        await tx.insert(clients).values({ id: clientId, gameId: game.id, name: 'SaltoPlay Native', scopes: requested, redirectUris }).onConflictDoUpdate({ target: clients.id, set: { redirectUris, updatedAt: new Date() } });
       }
       if (input.consent) {
         await tx.insert(grants).values({ playerId: player.id, gameId: game.id, scopes: requested }).onConflictDoUpdate({ target: [grants.playerId, grants.gameId], set: { scopes: requested, updatedAt: new Date() } });

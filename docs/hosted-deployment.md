@@ -1,75 +1,88 @@
-# Juegos alojados de SaltoUruguayServer
+# SaltoPlay: wildcard, ZIP y ejecución serverless
 
-## Componentes
+## Arquitectura de producción
 
-- El portal Astro autoriza subidas y gestiona revisiones/publicaciones.
-- El navegador sube los ZIP e imágenes directamente a un bucket de lectura pública con una URL PUT firmada de 15 minutos. En local, usa el endpoint autenticado de desarrollo.
-- `pnpm hosted:worker` procesa la cola de builds de PostgreSQL fuera de Vercel. `pnpm hosted:worker --once` vacía la cola y termina. No migra ni inicia el portal. Las imágenes se procesan inline en el portal al confirmar la subida; no necesitan worker.
-- `pnpm runtime` valida autorización y redirige a la URL pública del CDN, o sirve archivos desde el bucket en desarrollo local. Bajo un origen independiente por juego. Cada instancia necesita acceso de lectura a la base dedicada y al almacenamiento. Configurá el directorio de trabajo en la raíz de este proyecto.
+El proyecto Astro se despliega en Vercel con S3/R2 y la base dedicada de SaltoPlay. No necesita un runtime Node permanente ni un worker siempre encendido. No utiliza la base de la web principal ni el disco efímero de Vercel para guardar distribuciones.
 
-## Almacenamiento S3 / R2
+- Portal: https://play.saltouruguayserver.com
+- Runtime: https://{gameId}.hosted-games.play.saltouruguayserver.com/{buildId}/index.html
+- HOSTED_BASE_DOMAIN=hosted-games.play.saltouruguayserver.com
 
-Configurá S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID y S3_SECRET_ACCESS_KEY en portal, procesador y runtime. Para R2: S3_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com y S3_REGION=auto. Para S3, usá la región real y dejá S3_ENDPOINT vacío. S3_FORCE_PATH_STYLE es opcional para endpoints compatibles que lo necesiten.
+El middleware intercepta el host del juego antes de leer cookies o resolver rutas del portal. El contenido se transmite desde el almacenamiento bajo el origen de cada juego, conservando CSP, nosniff, permisos y control de acceso. No se redirige el juego a S3_PUBLIC_URL: un CDN compartido cambiaría el origen del documento y rompería el aislamiento y sus rutas relativas.
 
-Todo el contenido de SaltoPlay se puede leer públicamente: originales, imágenes y archivos de builds, incluso si la versión no figura en el catálogo. Las subidas, borrados y publicaciones siguen requiriendo autorización. Configurá lectura pública del prefijo de SaltoPlay en el proveedor; no habilites escritura anónima.
+El dominio elegido es un subdominio de la misma zona del portal: el aislamiento es por origen, no por dominio registrable. La cookie del portal sigue siendo HttpOnly, Secure en HTTPS y host-only. No ampliar su Domain a .play.saltouruguayserver.com ni .saltouruguayserver.com. Los juegos no reciben tokens de SaltoUruguayServer ni cookies de sesión del portal.
 
-CORS del bucket: permití PUT desde el origen exacto de PUBLIC_APP_URL y los encabezados Content-Type, x-amz-* que requiera el proveedor. No uses credenciales del bucket en el navegador. Los juegos pasan por el runtime. Las imágenes usan S3_PUBLIC_URL o MEDIA_CDN_URL si están configuradas; en caso contrario usan el runtime. Las subidas firmadas siempre usan el endpoint S3, no el CDN.
+## DNS y certificado wildcard
 
-Los archivos subidos primero se guardan bajo incoming/{gameId}/{id}/source. Configurá una regla de expiración para incoming/ (por ejemplo, 24 horas). No apliques esa regla a games/. Los originales procesados se borran automáticamente; la regla limpia subidas abandonadas. Un reintento de un procesamiento fallido requiere que su original no haya expirado.
+1. En el mismo proyecto Vercel del portal, agregar el dominio *.hosted-games.play.saltouruguayserver.com como dominio del despliegue, sin redirección hacia el portal.
+2. Configurar HOSTED_BASE_DOMAIN y PUBLIC_APP_URL en el entorno de producción de Vercel.
+3. Si el DNS de saltouruguayserver.com se administra fuera de Vercel, delegar únicamente el desafío del certificado y configurar el wildcard:
 
-## DNS y runtime
+| Tipo | Nombre relativo a saltouruguayserver.com | Destino |
+| --- | --- | --- |
+| CNAME | *.hosted-games.play | El destino exacto mostrado por Vercel para el dominio |
+| NS | _acme-challenge.hosted-games.play | ns1.vercel-dns.com. |
+| NS | _acme-challenge.hosted-games.play | ns2.vercel-dns.com. |
 
-HOSTED_BASE_DOMAIN debe estar en un dominio registrable distinto del portal, con DNS y TLS wildcard, por ejemplo *.saltoplay-games.example. No uses el dominio de la cuenta para servir HTML de usuarios. En local se usan {gameId}.localhost:4322 y .data/hosted.
+Seguir también el paso Enable Vercel DNS para la zona indicado en la documentación oficial de wildcard con DNS externo. Los NS del desafío no reemplazan los nameservers del dominio principal y no enrutan tráfico; se necesitan tanto los registros del certificado como el CNAME. Si el proveedor solicita nombres completos, usar _acme-challenge.hosted-games.play.saltouruguayserver.com. Mantener la delegación para renovar TLS.
 
-HOSTED_PREVIEW_SECRET debe ser un secreto aleatorio de al menos 32 caracteres, igual en portal y runtime. Las vistas previas vencen a los 15 minutos y usan una ruta firmada para que los assets relativos funcionen. No conceden sesión del portal ni permisos sobre los datos del jugador.
+No dar por terminado el DNS hasta que Vercel muestre dominio y certificado válidos. El código local no puede registrar el dominio ni modificar el DNS del proveedor. Esta implementación no modifica la cuenta de Vercel ni el DNS del proveedor.
 
-El runtime valida autorización y redirige (302, no-store) a la URL pública del CDN; el navegador carga el contenido desde el CDN con sus propios encabezados. Sin S3_PUBLIC_URL (desarrollo local), el runtime sirve los archivos directamente aplicando Content-Type, nosniff, CSP, frame-ancestors y Range para audio/vídeo. En ese modo, los documentos HTML y previews no se cachean y los assets de una versión publicada son inmutables. La configuración del proveedor no despliega por sí sola el runtime: hay que alojar este proceso (o implementar un gateway equivalente) con acceso a bucket y PostgreSQL.
+Referencia: https://vercel.com/docs/domains/working-with-domains/add-a-domain
 
-## Versiones
+## Almacenamiento y subidas
 
-Cada ZIP tiene su identificador, versión legible, notas, hash SHA-256 y manifiesto de archivos. El procesador valida rutas, enlaces, límites de descompresión y tipos. Cada intento usa un prefijo de artefactos independiente; un intento interrumpido no puede sobrescribir una versión terminada.
+Configurar S3_BUCKET, S3_REGION, S3_ENDPOINT cuando corresponda, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY y S3_PREFIX en Vercel. Para R2, el endpoint es https://ACCOUNT_ID.r2.cloudflarestorage.com y la región habitual es auto. Guardar las credenciales como secretos del despliegue, nunca en archivos versionados.
 
-Flujo: subida pendiente → en cola → procesando → lista → en revisión → aprobada. Publicar cambia activeBuildId en PostgreSQL y registra la acción. No se usa published.json ni otro puntero de publicación en el bucket. La versión anterior sigue disponible para sus partidas abiertas.
+El navegador sube el ZIP directamente al bucket mediante PUT firmado de 15 minutos. La confirmación que llega a Vercel contiene sólo el identificador: los límites del body de una Function no son el umbral de procesamiento del ZIP. Permitir PUT desde el origen exacto del portal y los encabezados Content-Type y x-amz-* necesarios en el CORS del bucket.
 
-Los dueños pueden publicar versiones aprobadas y restaurar versiones que ya se publicaron. La primera publicación y la aprobación requieren administración. Suspender el juego bloquea el runtime y la API. Las partidas nuevas que se abrieron desde una página desactualizada deben recargarla; las ya iniciadas pueden renovar sus tokens para el mismo build. Un rollback no revierte guardados ni logros. Versioná los datos de guardado y mantené compatibilidad entre versiones.
+S3_PREFIX se aplica una vez a las claves lógicas incoming/, games/ y media/. No incluirlo en S3_BUCKET ni S3_ENDPOINT. Configurar una expiración de 24 horas para S3_PREFIX + incoming/, nunca para games/ o media/. Los originales se borran al completar correctamente el procesamiento; los fallidos se conservan para reintentos hasta su expiración.
 
-## Imágenes
+S3_PUBLIC_URL ya mapea S3_PREFIX y se usa para imágenes; MEDIA_CDN_URL puede reemplazarla sólo para imágenes. El runtime de juegos siempre conserva su propio origen. Si el bucket/prefijo es público, sus URLs directas continúan siendo públicas, incluidas versiones no publicadas: la revisión del portal no proporciona confidencialidad del bucket. Definir una URL pública no cambia los permisos del proveedor.
 
-Hasta 8 MB por imagen. PNG, JPEG y WebP estáticos; se decodifican con límite de píxeles y se convierten a WebP sin conservar metadatos. Iconos: mínimo 128 × 128, salida 512 × 512. Banners/capturas: mínimo 320 × 180 y salida máxima 1920 × 1080. Se procesan inline en el portal al confirmar la subida o reintentar desde la consola; no requieren worker. Se pueden seleccionar icono, banner y hasta ocho capturas; se aplican al catálogo y la ficha pública después del procesamiento.
+## Procesamiento automático de ZIP
 
-## Operación
+La confirmación y el botón Reintentar usan el mismo despachador y el mismo procesador que el worker opcional.
 
-El worker reclama builds con FOR UPDATE SKIP LOCKED, permite varias instancias y renueva su lease. Un proceso interrumpido sin latidos durante diez minutos se marca fallido. El propietario puede reintentarlo desde la consola. No hay un servicio de procesamiento activado por guardar código: desplegá y supervisá el worker aparte. Las imágenes se procesan inline en el portal y no usan esta cola.
+- Inline: hasta 5 MiB comprimidos, 20 MiB declarados en el directorio central y 100 entradas. Se inspecciona el ZIP antes de decidir y luego se valida íntegramente al descomprimir. La respuesta contiene el estado final.
+- Segundo plano: el resto de paquetes permitidos se procesa con waitUntil en Vercel, devolviendo 202. La consola consulta el estado persistido.
+- Límites globales: 25 MiB comprimidos, 100 MiB expandidos, 30 MiB por archivo, 1500 entradas; index.html en la raíz. No se permiten rutas inseguras, enlaces, archivos especiales, cifrado ni formatos de backend.
 
-Aplicá las migraciones con pnpm db:migrate contra la base dedicada de SaltoPlay antes de iniciar las nuevas versiones del portal, worker y runtime. No uses la base de la web principal.
+El procesador guarda como máximo cuatro objetos en paralelo. Cada intento tiene un prefijo de artefactos independiente. La publicación del manifiesto está condicionada al processingToken del intento; un proceso viejo no puede sobrescribir una versión terminada. Se usa FOR UPDATE SKIP LOCKED para que el cron, el request y un worker opcional no reclamen el mismo trabajo.
 
-## Prefijo de bucket y CDN de imágenes
+La función se configura con maxDuration: 300 y requiere Fluid Compute habilitado con ese límite disponible. waitUntil no es una cola durable ni amplía el timeout: la cola durable es PostgreSQL. Al morir la Function, los datos de la tarea permanecen. Un procesamiento sin latido durante diez minutos se marca failed y se puede reintentar desde la consola si el original aún existe. Los trabajos que todavía están queued pueden ser recogidos por el cron.
 
-Configuración opcional, igual en portal, worker y runtime:
+Fuera de Vercel se espera el procesamiento en el request, porque no existe el ciclo de vida de waitUntil. No se deja una promesa desacoplada que pueda ser cancelada al terminar la petición.
 
-```env
-S3_PREFIX=saltoplay/
-S3_PUBLIC_URL=https://cdn.example.com/saltoplay/
-# Opcional: una base diferente solo para imágenes
-MEDIA_CDN_URL=
-```
+## Cron HTTP externo
 
-S3_PREFIX se normaliza y se añade una única vez en PUT, GET, HEAD, DELETE y subidas firmadas. No lo incluyas en S3_ENDPOINT ni S3_BUCKET. Se permiten varios segmentos, como plataformas/saltoplay/. El almacenamiento local no usa S3_PREFIX.
+No se configura Vercel Cron ni se requiere Pro para programar el disparador externo.
 
-Las claves lógicas se conservan sin prefijo: incoming/... para originales, games/... para builds y media/{gameId}/{mediaId}/{attemptId}.webp para imágenes procesadas. Con el ejemplo anterior, una imagen se almacena en saltoplay/media/... y su URL pública es https://cdn.example.com/saltoplay/media/.... S3_PUBLIC_URL es la base pública de todos los archivos y ya mapea el prefijo; el código no vuelve a añadir S3_PREFIX a esa URL. MEDIA_CDN_URL permite usar otra base solo para las imágenes. Si el CDN reescribe el prefijo en su origen, usá la base pública correspondiente.
+Configurar un CRON_SECRET aleatorio de al menos 32 caracteres como variable privada de Vercel y en el servicio de cron. Cada 5 minutos, realizar:
 
-La URL pública/CDN puede exponer incoming/, games/ y media/ dentro de S3_PREFIX. En R2, habilitá un dominio público del bucket; en S3, configurá acceso de lectura de objetos o una distribución CDN que los publique. El acceso público se configura en el proveedor: definir S3_PUBLIC_URL no cambia los permisos del bucket. Si el bucket es compartido, la política puede limitarse al prefijo de SaltoPlay.
+~~~http
+GET https://play.saltouruguayserver.com/api/internal/hosted-jobs
+Authorization: Bearer <CRON_SECRET>
+~~~
 
-Las URLs usan el identificador del intento de procesamiento y son inmutables. Configurá Content-Type image/webp, nosniff y caché larga. Sin MEDIA_CDN_URL, las imágenes usan S3_PUBLIC_URL; sin ninguna de las dos bases usan el runtime por juego. Si configurás el CDN, también debe poder servir los WebP del almacenamiento que use el worker; no se levanta automáticamente un CDN al definir la variable.
+No poner el secreto en el query string. El endpoint responde 503 si falta configuración y 401 si el Bearer no coincide. Un request autorizado recupera leases interrumpidos y procesa como máximo un build queued; devuelve { ok: true, processed: true } o processed: false si no hay trabajo. Las invocaciones pueden solaparse sin reclamar dos veces el mismo build. Darle al cliente HTTP un timeout de hasta 300 segundos; cada llamada sigue consumiendo una Function de Vercel.
 
-Elegí S3_PREFIX antes de empezar a subir archivos: cambiarlo no mueve objetos existentes. Cambiar S3_PUBLIC_URL o MEDIA_CDN_URL no reescribe los enlaces ya seleccionados en la ficha; volvé a seleccionar las imágenes desde la consola para guardar sus nuevas URLs. La regla de expiración de originales debe apuntar a S3_PREFIX + incoming/, nunca a media/ ni games/.
+Este cron es recuperación, no un paso obligatorio de cada subida: las subidas inician su trabajo directamente al confirmar. Los estados failed requieren el botón Reintentar, que vuelve a disparar el procesamiento automáticamente. Para vaciar una cola grande, aumentar la frecuencia del cron o usar el worker opcional.
 
-Los juegos HTML/JS, sus assets y las previews pasan por el runtime para validar autorización antes de redirigir al CDN. El redirect usa no-store: una CDN delante del runtime no debe cachear las respuestas de redirect. Configurá Content-Type, nosniff y caché en el CDN u objeto según corresponda.
+## Runtime, previews y versiones
 
-## Lectura pública y publicación
+El runtime serverless conserva autorización por juego y manifiesto, previews firmadas de 15 minutos, GET/HEAD y Range para audio/vídeo. Las respuestas del gateway usan no-store para que una caché no salte la revisión de una preview vencida o de un juego suspendido. La transmisión desde S3/R2 evita cargar el asset entero en memoria; el tráfico y la duración siguen sujetos a los límites y costes del proveedor.
 
-S3_PUBLIC_URL permite que el runtime redirija a la URL pública del CDN en vez de servir el contenido. El CDN debe soportar Range para audio/vídeo. Las subidas y el procesador siguen usando la API S3 autenticada. No se fuerza ninguna ACL por objeto: el acceso público se define a nivel de bucket/prefijo o dominio, compatible con R2 y S3.
+Flujo: awaiting_upload → queued → processing → ready → review → approved. La publicación cambia activeBuildId en PostgreSQL y registra el release. Las versiones previamente publicadas siguen accesibles para sus partidas abiertas mientras el juego esté publicado. Una preview firmada permite revisar builds ready, review o approved y no concede sesión del portal.
 
-La revisión y activeBuildId determinan qué versión ofrece el portal. No son un mecanismo de confidencialidad del bucket público: una URL directa puede leer un archivo de una versión no publicada y el vencimiento de una preview solo afecta a la ruta del runtime. Suspender un juego bloquea sus sesiones/API y las rutas del runtime, pero no elimina los archivos públicos ni sus copias en caché.
+El SDK se incluye en la Function para /sdk/saltoplay.js. La CSP permite el propio origen, /api/v1/ y /oauth/token del portal, conserva frame-ancestors del portal y bloquea service workers, subframes y APIs de cámara/micrófono. No se ejecuta código de backend subido por los juegos.
 
-Los juegos siguen pasando por el runtime aislado por juego para validar autorización antes de redirigir al CDN. No apuntes S3_PUBLIC_URL al origen del portal. No se guardan tokens, credenciales ni datos privados de jugadores en los archivos del bucket.
+Las imágenes de hasta 8 MiB PNG/JPEG/WebP estáticas siguen procesándose inline con sharp, límite de píxeles y salida WebP sin metadatos. No usan la cola de builds.
+
+## Desarrollo y operación opcional
+
+Para la demo local, dejar HOSTED_BASE_DOMAIN vacío, ejecutar pnpm dev y pnpm runtime por separado. Se usan {gameId}.localhost:4322 y el almacenamiento local .data/hosted si no hay S3_BUCKET. HOSTED_STORAGE_PATH, HOSTED_PORT y HOSTED_BIND corresponden únicamente al servidor de desarrollo u operación Node opcional.
+
+pnpm hosted:worker procesa la misma cola fuera de Vercel. pnpm hosted:worker --once la vacía y termina. No migra ni levanta el portal. Es opcional, útil para mantenimiento o cargas que no entren en el presupuesto de una Function.
+
+El portal y el runtime necesitan la base dedicada y el almacenamiento configurados. HOSTED_PREVIEW_SECRET debe tener al menos 32 caracteres. Los reintentos reutilizan el original, pero nunca el prefijo de artefactos del intento anterior. No hay cambios de esquema en esta implementación; seguir aplicando las migraciones pendientes del proyecto mediante su flujo habitual.

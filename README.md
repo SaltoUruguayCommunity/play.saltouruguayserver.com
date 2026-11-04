@@ -65,18 +65,13 @@ El portal usa `@astrojs/vercel`. Configurar las variables de `.env.example` en V
 
 ## Hosting de juegos
 
-Esta base implementa almacenamiento en disco persistente y un proceso Node independiente para servir distribuciones. **No usar filesystem efímero/serverless para hosted**. Portal y runtime deben compartir el volumen configurado en `HOSTED_STORAGE_PATH`.
+El portal y el runtime de juegos se ejecutan en el mismo proyecto Vercel, bajo orígenes distintos. Configurar HOSTED_BASE_DOMAIN=hosted-games.play.saltouruguayserver.com y agregar *.hosted-games.play.saltouruguayserver.com al proyecto, con DNS y TLS wildcard. El middleware atiende esos hosts antes de leer sesiones del portal. Cada juego conserva su propio origen; el runtime transmite archivos desde S3/R2 y no redirige el HTML al CDN compartido.
 
-Producción necesita:
+Las subidas van directamente al bucket con URL firmada. Al confirmar, los ZIP de hasta 5 MiB, hasta 20 MiB expandidos y hasta 100 entradas se procesan dentro del request. El resto usa waitUntil en Vercel, con una cola persistente, leases y reintentos. La función tiene maxDuration: 300; waitUntil comparte ese límite. No se usa el disco efímero de Vercel.
 
-- Portal HTTPS y Postgres dedicado.
-- Dominio registrable separado para el runtime, configurado como `HOSTED_BASE_DOMAIN` con DNS/TLS wildcard y proxy hacia el proceso runtime.
-- Cada juego usa `https://<game-id>.<HOSTED_BASE_DOMAIN>/<build-id>/index.html`.
-- Proxy que preserve el Host original y limite cuerpo de subida a 26 MB, conexiones y frecuencia de solicitudes. No publicar el puerto de Node directamente.
-- Respaldos del volumen y Postgres coordinados. El archivo `published.json` es un puntero del runtime; no contiene credenciales.
-- Almacenamiento S3/CDN puede sustituir esta implementación después; todavía no hay adaptador S3.
+Un cron HTTP externo puede llamar a GET /api/internal/hosted-jobs con Authorization: Bearer CRON_SECRET para recuperar trabajos pendientes. No requiere Vercel Cron. El procesador y el runtime Node siguen disponibles para desarrollo y operación opcional; ya no son servicios obligatorios para producción.
 
-Límites de paquetes: 25 MB ZIP / 100 MB extraído / 30 MB por archivo / 1500 entradas / 10 builds por juego. Assets estáticos y WASM de una hebra; nada de backends o ejecutables nativos. CSP permite conexiones al propio origen y a /api/v1/ y /oauth/token del portal para las partidas nativas; bloquea las demás conexiones externas, service workers y subframes. No hay un antivirus externo conectado; la validación estructural no certifica que el código de un juego sea confiable.
+Límites generales: 25 MiB ZIP, 100 MiB expandido, 30 MiB por archivo y 1500 entradas. Distribuciones inmutables con publicación y rollback en PostgreSQL. Las previews firmadas vencen a los 15 minutos. Las imágenes siguen procesándose inline. Configuración completa y DNS: [hosted-deployment.md](docs/hosted-deployment.md).
 
 ## Validación
 

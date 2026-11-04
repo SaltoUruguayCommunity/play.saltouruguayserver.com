@@ -12,8 +12,7 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
   const actor = requirePlayer(locals.player), gameId = z.uuid().parse(params.id);
   const { id, action } = z.object({ id: z.uuid(), action: z.enum(['select', 'remove', 'retry']) }).parse(await request.json());
   let artifact: string | null = null;
-  let retry: { kind: 'icon' | 'banner' | 'screenshot'; sourceBytes: number } | null = null;
-  await db().transaction(async tx => {
+  const retry = await db().transaction(async tx => {
    const [game] = await tx.select().from(games).where(and(eq(games.id, gameId), eq(games.ownerId, actor.id))).for('update');
    if (!game || game.status === 'suspended') throw new HttpError(404, 'not_found');
    const [media] = await tx.select().from(gameMedia).where(and(eq(gameMedia.id, id), eq(gameMedia.gameId, gameId))).for('update');
@@ -21,8 +20,7 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
    const url = mediaUrl(gameId, id, media.artifactKey);
    if (action === 'retry') {
     if (media.status !== 'failed') throw new HttpError(409, 'invalid_transition');
-    retry = { kind: media.kind, sourceBytes: media.sourceBytes };
-    return;
+    return { kind: media.kind, sourceBytes: media.sourceBytes };
    }
    if (action === 'remove') {
     if (['queued', 'processing'].includes(media.status)) throw new HttpError(409, 'media_processing');

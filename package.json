@@ -27,11 +27,13 @@
     "@fontsource/anton": "^5.3.0",
     "@lucide/astro": "^1.61.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@vercel/functions": "^3.10.6",
     "astro": "^7.4.2",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",
+    "tldts": "^7.4.19",
     "yauzl": "^3.4.0",
     "zod": "^4.6.7"
   },

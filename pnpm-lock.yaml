@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@astrojs/vercel':
         specifier: ^11.0.16
-        version: 11.0.16(@aws-sdk/credential-provider-web-identity@3.972.83)(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 11.0.16(@aws-sdk/credential-provider-web-identity@3.972.83)(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@aws-sdk/client-s3':
         specifier: ^3.1158.0
         version: 3.1158.0
@@ -34,13 +34,16 @@ importers:
         version: 5.3.0
       '@lucide/astro':
         specifier: ^1.61.0
-        version: 1.61.0(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 1.61.0(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@vercel/functions':
+        specifier: ^3.10.6
+        version: 3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83)
       astro:
         specifier: ^7.4.2
-        version: 7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
@@ -53,6 +56,9 @@ importers:
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
+      tldts:
+        specifier: ^7.4.19
+        version: 7.4.19
       yauzl:
         specifier: ^3.4.0
         version: 3.4.0
@@ -1396,15 +1402,15 @@ packages:
       vue-router:
         optional: true
 
-  '@vercel/cli-config@0.3.3':
-    resolution: {integrity: sha512-5T0ZtIFgcFHuPFuuoJKno5ZeKvLQGiS/JAFMI1zG1HBw2dklScoHdA0LDb/SoeRYD53N33iXFAqyRA0tHLhdnQ==}
+  '@vercel/cli-config@0.3.6':
+    resolution: {integrity: sha512-jKsEWixJ+yMs2V29fqFxeDTQDglsgj7hvSXJf9pPmyYISvuTpTt45j/g47O6RWbe7aJycPbDOk7uKPHPA+LDYg==}
 
   '@vercel/cli-exec@1.0.1':
     resolution: {integrity: sha512-g9XerViJ/paZujufXYcu5XYI2vU2rtB4sgdpjUHde5RnOkdmpu0ngH46LCFGHoPXO/C+qDPSczIHIRN+8Q2YKQ==}
     engines: {node: '>= 18'}
 
-  '@vercel/functions@3.10.3':
-    resolution: {integrity: sha512-EjMUf+myWckV9vj5FbzRG1wQP1IFRgmlOu2ho1FiFTjLs1mFnY4dxeI8Swk9pszj4jv/jGdvlmqRKHipuEt5bw==}
+  '@vercel/functions@3.10.6':
+    resolution: {integrity: sha512-E6oojSTJALDq703E0R1ijZzX2ibZYYwRwLCq/9+FIdArpjJzQEy2nT3rGCV8H3mgU45wbjCd8iSdjpLtGjGvrw==}
     engines: {node: '>= 20'}
     peerDependencies:
       '@aws-sdk/credential-provider-web-identity': '*'
@@ -1420,8 +1426,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  '@vercel/oidc@4.0.3':
-    resolution: {integrity: sha512-0sljpA/leE1vLkY7DVOs/z/OH6x1hgKhrF+IY2YdbRYm/6UnQjeu0SMnzOKLtkJWp13srUFkWdir4iU3feFYfg==}
+  '@vercel/oidc@4.0.6':
+    resolution: {integrity: sha512-VlrMq9V20Sts9PRYeeh7d8+QCuTvDgujZ0OyakfEJkM7NpQTW+x2IFvVWGJzg+84RhFFa2kKir6gw5E4EcTsuw==}
     engines: {node: '>= 20'}
 
   '@vercel/routing-utils@6.6.0':
@@ -2540,6 +2546,13 @@ packages:
   tinyps@0.5.1:
     resolution: {integrity: sha512-B6Ykif5HflC3AdDkS4Zst/2muYVfeXoVMy+KorqH80s/1x4vunIORpNySH681X7fjj+dFM9MDKD6/Hsccjb87Q==}
 
+  tldts-core@7.4.20:
+    resolution: {integrity: sha512-C630TWXZCZmLq0F2bW4QqwnaaxCQ/svpAqvJwnC4JvgEM5ohhBnGsEzTLSOXcN+xjz+kEaHS5uoWIw2klnqd0A==}
+
+  tldts@7.4.19:
+    resolution: {integrity: sha512-48dH6aSpQnpbzDUc4vIQZ1VjB8tkK+e8c1yx05/SZK+rkssgjEOlxDd/yU8/a4vGYQ9vRgJr9dwMq9TJ0b3X2Q==}
+    hasBin: true
+
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
 
@@ -2901,9 +2914,6 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod@4.1.11:
-    resolution: {integrity: sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -3036,14 +3046,14 @@ snapshots:
       is-docker: 4.0.0
       package-manager-detector: 1.9.0
 
-  '@astrojs/vercel@11.0.16(@aws-sdk/credential-provider-web-identity@3.972.83)(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
+  '@astrojs/vercel@11.0.16(@aws-sdk/credential-provider-web-identity@3.972.83)(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@astrojs/internal-helpers': 0.13.0
       '@vercel/analytics': 2.0.1
-      '@vercel/functions': 3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83)
+      '@vercel/functions': 3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83)
       '@vercel/nft': 1.11.0
       '@vercel/routing-utils': 6.6.0
-      astro: 7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      astro: 7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       rolldown: 1.2.15
       tinyglobby: 0.2.17
     transitivePeerDependencies:
@@ -3724,9 +3734,9 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@lucide/astro@1.61.0(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
+  '@lucide/astro@1.61.0(astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
-      astro: 7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      astro: 7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   '@mapbox/node-pre-gyp@2.0.3':
     dependencies:
@@ -4001,18 +4011,18 @@ snapshots:
 
   '@vercel/analytics@2.0.1': {}
 
-  '@vercel/cli-config@0.3.3':
+  '@vercel/cli-config@0.3.6':
     dependencies:
       xdg-app-paths: 5.5.1
-      zod: 4.1.11
+      zod: 4.6.7
 
   '@vercel/cli-exec@1.0.1':
     dependencies:
       execa: 5.1.1
 
-  '@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83)':
+  '@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83)':
     dependencies:
-      '@vercel/oidc': 4.0.3
+      '@vercel/oidc': 4.0.6
     optionalDependencies:
       '@aws-sdk/credential-provider-web-identity': 3.972.83
 
@@ -4035,9 +4045,9 @@ snapshots:
       - rollup
       - supports-color
 
-  '@vercel/oidc@4.0.3':
+  '@vercel/oidc@4.0.6':
     dependencies:
-      '@vercel/cli-config': 0.3.3
+      '@vercel/cli-config': 0.3.6
       '@vercel/cli-exec': 1.0.1
       jose: 5.10.0
 
@@ -4146,7 +4156,7 @@ snapshots:
 
   aria-query@5.3.2: {}
 
-  astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1):
+  astro@7.4.2(@types/node@26.6.5)(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       '@astrojs/compiler-rs': 0.5.2
       '@astrojs/internal-helpers': 0.13.0
@@ -4193,7 +4203,7 @@ snapshots:
       tinyps: 0.5.1
       ultrahtml: 1.7.0
       unifont: 1.0.3
-      unstorage: 1.17.6(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83))
+      unstorage: 1.17.6(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83))
       verkit: 0.5.0
       vite: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       vitefu: 1.1.3(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -5149,6 +5159,12 @@ snapshots:
 
   tinyps@0.5.1: {}
 
+  tldts-core@7.4.20: {}
+
+  tldts@7.4.19:
+    dependencies:
+      tldts-core: 7.4.20
+
   tr46@0.0.3: {}
 
   trim-lines@3.0.1: {}
@@ -5221,7 +5237,7 @@ snapshots:
       unist-util-is: 6.0.1
       unist-util-visit-parents: 6.0.2
 
-  unstorage@1.17.6(@vercel/functions@3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83)):
+  unstorage@1.17.6(@vercel/functions@3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83)):
     dependencies:
       anymatch: 3.1.3
       chokidar: 5.0.0
@@ -5232,7 +5248,7 @@ snapshots:
       ofetch: 1.5.1
       ufo: 1.6.4
     optionalDependencies:
-      '@vercel/functions': 3.10.3(@aws-sdk/credential-provider-web-identity@3.972.83)
+      '@vercel/functions': 3.10.6(@aws-sdk/credential-provider-web-identity@3.972.83)
 
   uri-js@4.4.1:
     dependencies:
@@ -5445,8 +5461,6 @@ snapshots:
       pend: 1.2.0
 
   yocto-queue@1.2.2: {}
-
-  zod@4.1.11: {}
 
   zod@4.6.7: {}
 

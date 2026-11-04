@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { games, builds, gameMedia } from '@/db/schema';
 import { headObject, sourceKey } from '@/lib/object-storage';
 import { processMediaInline } from '@/lib/media-process';
+import { dispatchBuild } from '@/lib/build-dispatch';
 import { failure, requirePlayer, HttpError, json } from '@/lib/http';
 export const POST: APIRoute = async ({ request, locals, params }) => {
  try {
@@ -29,6 +30,7 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
   const stored = await headObject(sourceKey(gameId, id));
   if (stored.bytes !== row.sourceBytes) throw new HttpError(400, 'size_mismatch');
   await db().update(builds).set({ status: 'queued', updatedAt: new Date() }).where(and(eq(builds.id, id), eq(builds.status, 'awaiting_upload')));
-  return json({ ok: true, status: 'queued' }, 202);
+  const result = await dispatchBuild(gameId, id, row.sourceBytes);
+  return json({ ok: true, ...result }, result.mode === 'background' ? 202 : 200);
  } catch (error) { return failure(error); }
 };

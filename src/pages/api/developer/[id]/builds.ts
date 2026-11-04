@@ -8,6 +8,7 @@ import { createPreviewToken } from '@/lib/hosted-preview';
 import { runtimeOrigin } from '@/lib/runtime';
 import { publishVersion } from '@/lib/releases';
 import { headObject, sourceKey } from '@/lib/object-storage';
+import { dispatchBuild } from '@/lib/build-dispatch';
 import { failure, requirePlayer, HttpError, json } from '@/lib/http';
 export const POST: APIRoute = async ({ request, locals, params }) => {
  try {
@@ -28,7 +29,8 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
    if (build.status !== 'failed') throw new HttpError(409, 'invalid_transition');
    await headObject(sourceKey(gameId, buildId));
    await db().update(builds).set({ status: 'queued', error: null, updatedAt: new Date() }).where(and(eq(builds.id, buildId), eq(builds.status, 'failed')));
-   return json({ ok: true });
+   const result = await dispatchBuild(gameId, buildId, build.sourceBytes);
+   return json({ ok: true, ...result }, result.mode === 'background' ? 202 : 200);
   }
   if (action === 'discard') {
    if (!['failed', 'awaiting_upload'].includes(build.status)) throw new HttpError(409, 'invalid_transition');

@@ -5,10 +5,19 @@ export const mime: Record<string, string> = {
 };
 export async function storeBuild(gameId: string, buildId: string, artifactId: string, files: Map<string, Buffer>) {
   const manifest: Record<string, { bytes: number; type: string }> = {};
-  for (const [name, body] of files) {
-    const type = mime[extname(name).toLowerCase()] || 'application/octet-stream';
-    await putObject(buildKey(gameId, buildId, artifactId, name), body, type);
-    manifest[name] = { bytes: body.length, type };
-  }
+  const pending = files.entries();
+  let uploadError: unknown;
+  // Bounded concurrency: do not make 1500 serial network round-trips or open
+  // one socket per file in a single serverless invocation.
+  await Promise.all(Array.from({ length: 4 }, async () => {
+    for (const [name, body] of pending) {
+      if (uploadError) break;
+      const type = mime[extname(name).toLowerCase()] || 'application/octet-stream';
+      try { await putObject(buildKey(gameId, buildId, artifactId, name), body, type); }
+      catch (error) { uploadError = error; break; }
+      manifest[name] = { bytes: body.length, type };
+    }
+  }));
+  if (uploadError) throw uploadError;
   return manifest;
 }

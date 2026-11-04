@@ -1,7 +1,8 @@
 import { publicObjectUrl } from './public-assets';
+import { hostedBaseDomain } from './hosted-config';
 export function runtimeOrigin(gameId: string) {
-  const base = import.meta.env?.HOSTED_BASE_DOMAIN || process.env.HOSTED_BASE_DOMAIN;
-  return base ? `https://${gameId}.${base}` : `http://${gameId}.localhost:4322`;
+  const base = hostedBaseDomain();
+  return base === 'localhost' ? `http://${gameId}.localhost:4322` : `https://${gameId}.${base}`;
 }
 
 /** Images use the public bucket/CDN base, with an optional image-specific override. */

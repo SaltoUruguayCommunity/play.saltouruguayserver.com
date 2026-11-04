@@ -1,7 +1,11 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getPlayer } from '@/lib/auth';
 import { appUrl } from '@/lib/security';
+import { isHostedRuntimeHost } from '@/lib/hosted-config';
+import { serveHostedRequest } from '@/lib/hosted-runtime';
 export const onRequest = defineMiddleware(async (context, next) => {
+  // Wildcard game requests must never reach portal cookies, auth routes or HTML.
+  if (isHostedRuntimeHost(context.url.hostname)) return serveHostedRequest(context.request);
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(context.request.method) && !context.url.pathname.startsWith('/api/v1/') && context.url.pathname !== '/oauth/token' && !(['/api/native/token', '/api/native/library'].includes(context.url.pathname) && !context.request.headers.has('origin'))) {
     if (context.request.headers.get('origin') !== new URL(appUrl()).origin) return new Response('Origen no permitido', { status: 403 });
   }

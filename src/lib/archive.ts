@@ -3,6 +3,23 @@ const extensions = new Set(['html', 'js', 'mjs', 'css', 'json', 'png', 'jpg', 'j
 export function safeArchivePath(name: string) {
   return name.length <= 220 && /^[a-zA-Z0-9_./@ -]+$/.test(name) && !name.startsWith('/') && !name.includes('\\') && !name.split('/').some(p => p === '..' || p.startsWith('.') || /[. ]$/.test(p)) && !name.includes(':') && !name.split('/').some(p => /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(p));
 }
+/** Inspect the central directory before deciding whether a ZIP fits inline work. */
+export function inspectArchive(buffer: Buffer): Promise<{ entries: number; expandedBytes: number }> {
+  return new Promise((resolve, reject) => {
+    yauzl.fromBuffer(buffer, { lazyEntries: true, validateEntrySizes: true, strictFileNames: true }, (error, zip) => {
+      if (error || !zip) { reject(new Error('No pudimos leer el ZIP.')); return; }
+      let entries = 0, expandedBytes = 0;
+      zip.on('error', () => reject(new Error('El ZIP está dañado.')));
+      zip.on('entry', entry => {
+        entries++; expandedBytes += entry.uncompressedSize;
+        if (entries > 1500 || expandedBytes > 100 * 1024 * 1024) { zip.close(); reject(new Error('El contenido descomprimido supera los límites.')); return; }
+        zip.readEntry();
+      });
+      zip.on('end', () => resolve({ entries, expandedBytes }));
+      zip.readEntry();
+    });
+  });
+}
 export async function unpack(buffer: Buffer): Promise<Map<string, Buffer>> {
   if (buffer.length > 25 * 1024 * 1024) throw new Error('El ZIP supera los 25 MB.');
   return new Promise((resolve, reject) => {
