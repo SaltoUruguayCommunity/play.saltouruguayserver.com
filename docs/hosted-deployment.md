@@ -75,7 +75,7 @@ El runtime serverless conserva autorización por juego y manifiesto, previews fi
 
 Flujo: awaiting_upload → queued → processing → ready → review → approved. La publicación cambia activeBuildId en PostgreSQL y registra el release. Las versiones previamente publicadas siguen accesibles para sus partidas abiertas mientras el juego esté publicado. Una preview firmada permite revisar builds ready, review o approved y no concede sesión del portal.
 
-El SDK se incluye en la Function para /sdk/saltoplay.js. La CSP permite el propio origen, /api/v1/ y /oauth/token del portal, conserva frame-ancestors del portal y bloquea service workers, subframes y APIs de cámara/micrófono. No se ejecuta código de backend subido por los juegos.
+El SDK se incluye en la Function para /sdk/saltoplay.js. La CSP permite el propio origen, /api/v1/ y /oauth/token del portal, conexiones WebSocket (`wss:`/`ws:`, p. ej. para backends propios del juego), conserva frame-ancestors del portal y bloquea service workers, subframes y APIs de cámara/micrófono. No se ejecuta código de backend subido por los juegos.
 
 Las imágenes de hasta 8 MiB PNG/JPEG/WebP estáticas siguen procesándose inline con sharp, límite de píxeles y salida WebP sin metadatos. No usan la cola de builds.
 
