@@ -1,0 +1,12 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import ServerForm from "@/components/ServerForm.astro";
+import { listServers } from "@/lib/community-servers";
+import { admin } from "@/lib/security";
+if (!Astro.locals.player || !admin(Astro.locals.player)) return Astro.redirect("/404");
+const id = Astro.params.id;
+const servers = await listServers(true);
+const server = id === 'nuevo' ? undefined : servers.find(s => s.id === id);
+if (id !== 'nuevo' && !server) return Astro.redirect('/404');
+---
+<AdminLayout title={server ? `Editar · ${server.title}` : 'Nueva serie'}><a href="/admin/servidores" class="text-xs" style="color:#bba3ff">← Servidores</a><h1 class="page-title mt-3">{server ? server.title : 'Agregar servidor o serie'}</h1><div class="mt-6 max-w-3xl"><ServerForm server={server} /></div></AdminLayout>

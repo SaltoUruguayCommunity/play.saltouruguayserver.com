@@ -58,7 +58,7 @@ export async function serveHostedRequest(request: Request, localDemo = false): P
       if (preview) {
         if (!verifyPreviewToken(token, gameId, buildId) || !['ready', 'review', 'approved'].includes(row.status)) return unavailable();
       } else {
-        if (row.gameStatus !== 'published' || row.status !== 'approved') return unavailable();
+        if (row.gameStatus !== 'published' || !['ready', 'review', 'approved'].includes(row.status)) return unavailable();
         if (row.activeBuildId !== buildId) {
           const [release] = await db().select({ id: releases.id }).from(releases).where(and(eq(releases.gameId, gameId), eq(releases.buildId, buildId))).limit(1);
           if (!release) return unavailable();

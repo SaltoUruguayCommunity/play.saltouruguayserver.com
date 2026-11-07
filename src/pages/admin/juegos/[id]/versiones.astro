@@ -1,0 +1,15 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import HostedAssets from '@/components/HostedAssets.astro';
+import { db } from '@/db';
+import { games } from '@/db/schema';
+import { admin } from '@/lib/security';
+import { eq } from 'drizzle-orm';
+import { z } from 'zod';
+if (!Astro.locals.player || !admin(Astro.locals.player)) return Astro.redirect('/404');
+const id = z.uuid().safeParse(Astro.params.id);
+if (!id.success) return Astro.redirect('/404');
+const [game] = await db().select().from(games).where(eq(games.id, id.data));
+if (!game) return Astro.redirect('/404');
+---
+<AdminLayout title={'Versiones · ' + game.title}><a href={`/admin/juegos/${game.id}`} class="text-xs" style="color:#bba3ff">← {game.title}</a><h1 class="page-title mt-3">{game.title} · Versiones</h1><p class="muted mb-6 text-xs leading-6">Solo lectura. El desarrollador elige qué versión está en producción; el admin solo puede suspender el juego.</p><HostedAssets game={game} mode="admin" /></AdminLayout>

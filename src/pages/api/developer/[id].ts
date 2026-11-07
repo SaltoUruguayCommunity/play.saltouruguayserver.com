@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, desc } from 'drizzle-orm';
 import { db } from '@/db';
 import { games, clients, achievements, builds, audit } from '@/db/schema';
 import { failure, formObject, HttpError, json, requirePlayer } from '@/lib/http';
@@ -34,8 +34,9 @@ export const POST: APIRoute = async ({ params, locals, request }) => {
     if (action === 'review') {
       if (game.status !== 'draft') throw new HttpError(409, 'invalid_transition');
       if (game.type === 'external' && (!game.url || !safeWebUrl(game.url))) throw new HttpError(400, 'url_required', 'Configurá la URL del juego antes de enviarlo.');
-      if (game.type === 'hosted') { const ready = await db().select().from(builds).where(and(eq(builds.gameId, id), eq(builds.status, 'ready'))); if (!ready.length) throw new HttpError(400, 'build_required', 'Subí una distribución web antes de enviarlo.'); }
-      await db().transaction(async tx => { await tx.update(games).set({ status: 'review', updatedAt: new Date() }).where(eq(games.id, id)); await tx.update(builds).set({ status: 'review' }).where(and(eq(builds.gameId, id), eq(builds.status, 'ready'))); await tx.insert(audit).values({ actorId: player.id, action: 'game.submitted', targetId: id }); });
+      let candidateId: string | null = game.activeBuildId;
+      if (game.type === 'hosted') { const ready = await db().select().from(builds).where(and(eq(builds.gameId, id), eq(builds.status, 'ready'))).orderBy(desc(builds.createdAt)); if (!ready.length && !game.activeBuildId) throw new HttpError(400, 'build_required', 'Subí una distribución web antes de enviarlo.'); candidateId = ready[0]?.id ?? candidateId; }
+      await db().transaction(async tx => { await tx.update(games).set({ status: 'review', activeBuildId: candidateId, updatedAt: new Date() }).where(eq(games.id, id)); await tx.update(builds).set({ status: 'review' }).where(and(eq(builds.gameId, id), eq(builds.status, 'ready'))); await tx.insert(audit).values({ actorId: player.id, action: 'game.submitted', targetId: id }); });
     }
     return json({ ok: true });
   } catch (e) { return failure(e); }

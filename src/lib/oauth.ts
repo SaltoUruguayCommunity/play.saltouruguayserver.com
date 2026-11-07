@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { clients, games, codes, tokens, refreshTokens, builds } from '@/db/schema';
 import { equal, hash, pkce, randomToken } from './security';
@@ -37,7 +37,7 @@ export async function rotateRefresh(clientId: string, refresh: string, secret?: 
     }
     const [previousAccess] = await tx.select().from(tokens).where(eq(tokens.hash, row.accessHash));
     if (!previousAccess) return null;
-    if (previousAccess.buildId) { const [build] = await tx.select({ id: builds.id }).from(builds).where(and(eq(builds.id, previousAccess.buildId), eq(builds.gameId, game.id), eq(builds.status, 'approved'))); if (!build) return null; }
+    if (previousAccess.buildId) { const [build] = await tx.select({ id: builds.id }).from(builds).where(and(eq(builds.id, previousAccess.buildId), eq(builds.gameId, game.id), inArray(builds.status, ['ready', 'review', 'approved']))); if (!build) return null; }
     const access = randomToken(), replacement = randomToken();
     await tx.update(refreshTokens).set({ used: true }).where(eq(refreshTokens.hash, row.hash));
     await tx.delete(tokens).where(eq(tokens.hash, row.accessHash));

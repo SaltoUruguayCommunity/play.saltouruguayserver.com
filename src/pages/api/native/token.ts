@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { builds, clients, games, grants, tokens, refreshTokens } from '@/db/schema';
 import { playerFromAccessToken } from '@/lib/identity';
@@ -21,7 +21,7 @@ export const POST: APIRoute = async ({ request }) => {
     let clientId: string | null = null;
     let launchUrl: string;
     if (game.type === 'hosted') {
-      const [build] = await db().select().from(builds).where(and(eq(builds.id, game.activeBuildId || '00000000-0000-0000-0000-000000000000'), eq(builds.gameId, game.id), eq(builds.status, 'approved')));
+      const [build] = await db().select().from(builds).where(and(eq(builds.id, game.activeBuildId || '00000000-0000-0000-0000-000000000000'), eq(builds.gameId, game.id), inArray(builds.status, ['ready', 'review', 'approved'])));
       if (!build?.artifactId) throw new HttpError(404, 'game_unavailable');
       launchUrl = `${runtimeOrigin(game.id)}/${build.id}/${build.entrypoint}`;
     } else {

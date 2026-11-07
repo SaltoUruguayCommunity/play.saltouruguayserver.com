@@ -1,0 +1,46 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import { admin } from '@/lib/security';
+import { db } from '@/db';
+import { games, players, builds, releases } from '@/db/schema';
+import { eq, desc } from 'drizzle-orm';
+import { z } from 'zod';
+if (!Astro.locals.player || !admin(Astro.locals.player)) return Astro.redirect('/404');
+const id = z.uuid().safeParse(Astro.params.id);
+if (!id.success) return Astro.redirect('/404');
+const [row] = await db().select({ game: games, owner: players.displayName }).from(games).innerJoin(players, eq(players.id, games.ownerId)).where(eq(games.id, id.data));
+if (!row) return Astro.redirect('/404');
+const { game, owner } = row;
+const [prodBuild] = game.activeBuildId ? await db().select().from(builds).where(eq(builds.id, game.activeBuildId)) : [];
+const history = await db().select({ release: releases, version: builds.version }).from(releases).innerJoin(builds, eq(builds.id, releases.buildId)).where(eq(releases.gameId, game.id)).orderBy(desc(releases.createdAt)).limit(10);
+const labels: Record<string, string> = { draft: 'Borrador', review: 'En revisión', published: 'Publicado', suspended: 'Suspendido' };
+const date = (v: Date) => new Date(v).toLocaleString('es-UY', { timeZone: 'America/Montevideo', dateStyle: 'short', timeStyle: 'short' });
+---
+<AdminLayout title={'Revisar · ' + game.title}>
+  <a href="/admin" class="text-xs" style="color:#bba3ff">← Cola de revisión</a>
+  <div class="mt-4 flex flex-wrap items-start justify-between gap-4">
+    <div><p class="eyebrow">{game.type === 'hosted' ? 'Juego hosted' : 'Juego externo'} · {owner}</p><h1 class="page-title mt-2">{game.title}</h1><p class="muted mono mt-1 text-xs">/{game.slug}</p></div>
+    <span class:list={['status', 'status-' + game.status]}>{labels[game.status]}</span>
+  </div>
+  <div class="stepper" aria-label="Flujo de publicación"><span class:list={{done: true}}>Borrador</span><span class:list={{current: game.status==='review', done: game.status==='published'}}>En revisión</span><span class:list={{current: game.status==='published'}}>Publicado</span><span class:list={{current: game.status==='suspended'}}>Suspendido</span></div>
+  <div class="admin-grid">
+    <div class="space-y-5">
+      <section class="admin-card"><h2 class="mb-3 text-base font-semibold">Ficha</h2><p class="text-sm leading-7" style="color:#c5bfce">{game.description}</p>
+        <dl class="admin-kv mt-5"><dt>Género</dt><dd>{game.genre}</dd><dt>Tipo</dt><dd>{game.type}</dd>{game.url && <><dt>URL externa</dt><dd><a href={game.url} target="_blank" rel="noopener noreferrer" style="color:#bba3ff">{game.url} ↗</a></dd></>}<dt>Actualizado</dt><dd>{date(game.updatedAt)}</dd></dl>
+        {(game.icon || game.cover || game.screenshots.length > 0) && <div class="mt-5 flex flex-wrap gap-3">{[game.icon, game.cover, ...game.screenshots].filter(Boolean).map(src => <img src={src} alt="" loading="lazy" style="width:120px;height:68px;object-fit:cover;border-radius:8px;border:1px solid #ffffff14" />)}</div>}
+      </section>
+      {game.type === 'hosted' && <section class="admin-card"><h2 class="mb-3 text-base font-semibold">Versión elegida por el desarrollador</h2>
+        {prodBuild ? <><p class="text-sm">Candidata / en producción: <code class="mono">v{prodBuild.version}</code> · {prodBuild.fileCount} archivos · {(prodBuild.bytes/1024/1024).toFixed(1)} MB</p><p class="muted mono mt-2 text-xs">digest {prodBuild.digest ? prodBuild.digest.slice(0,16)+'…' : '—'} · entrypoint {prodBuild.entrypoint}</p>{prodBuild.notes && <p class="muted mt-3 text-xs leading-6">{prodBuild.notes}</p>}<a class="btn btn-secondary mt-4" href={`/admin/juegos/${game.id}/versiones`}>Ver versiones (solo lectura) →</a></> : <p class="muted text-xs">El desarrollador todavía no eligió una versión para producción.</p>}
+        {history.length > 0 && <><h3 class="mt-6 mb-2 text-sm font-semibold">Historial</h3><ol class="space-y-2">{history.map(h => <li class="text-xs"><span style="color:#d8b4fe">{h.release.action === 'rollback' ? 'Restaurada' : 'Publicada'} v{h.version}</span><span class="muted ml-3">{date(h.release.createdAt)}</span></li>)}</ol></>}
+      </section>}
+    </div>
+    <aside class="admin-card"><h2 class="mb-3 text-base font-semibold">Acciones del admin</h2><p class="muted mb-4 text-xs leading-6">Solo sobre el juego. La versión en producción la maneja el desarrollador.</p>
+      <form method="post" action="/api/admin/review" class="space-y-3"><input type="hidden" name="gameId" value={game.id} />
+        <button class="btn btn-primary w-full" name="decision" value="publish" disabled={!['review','published','suspended'].includes(game.status)}>Aprobar y publicar juego</button>
+        <button class="btn btn-secondary w-full" name="decision" value="draft" disabled={game.status==='draft'}>Devolver a borrador</button>
+        <button class="btn btn-secondary w-full" name="decision" value="suspend" disabled={game.status==='suspended'}>Suspender juego</button>
+      </form>
+      <p class="muted mt-4 text-[11px] leading-5">Al suspender se revocan tokens de acceso. Los guardados y logros se conservan.</p>
+    </aside>
+  </div>
+</AdminLayout>

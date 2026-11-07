@@ -1,6 +1,4 @@
 ---
-import Layout from '@/layouts/Layout.astro';
-import HostedAssets from '@/components/HostedAssets.astro';
 import { db } from '@/db';
 import { games } from '@/db/schema';
 import { admin } from '@/lib/security';
@@ -11,5 +9,5 @@ const id = z.uuid().safeParse(Astro.url.searchParams.get('gameId'));
 if (!id.success) return Astro.redirect('/admin');
 const [game] = await db().select().from(games).where(eq(games.id, id.data));
 if (!game) return Astro.redirect('/404');
+return Astro.redirect(`/admin/juegos/${game.id}/versiones`);
 ---
-<Layout title={'Revisar versiones · ' + game.title}><a class="text-xs text-violet" href="/admin">← Administración</a><h1 class="page-title mt-6">{game.title}</h1><p class="muted mb-7 text-xs leading-7">Revisá el paquete en un origen aislado antes de aprobarlo. Aprobar una versión no la publica automáticamente.</p><HostedAssets game={game} canReview /></Layout>

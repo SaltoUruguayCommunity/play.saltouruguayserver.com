@@ -1,0 +1,11 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import { db } from '@/db';
+import { audit, players } from '@/db/schema';
+import { admin } from '@/lib/security';
+import { eq, desc } from 'drizzle-orm';
+if (!Astro.locals.player || !admin(Astro.locals.player)) return Astro.redirect('/404');
+const rows = await db().select({ log: audit, actor: players.displayName }).from(audit).innerJoin(players, eq(players.id, audit.actorId)).orderBy(desc(audit.createdAt)).limit(100);
+---
+<AdminLayout title="Auditoría"><p class="eyebrow">Admin · Auditoría</p><h1 class="page-title mt-2">Auditoría</h1><p class="muted mt-2 text-xs">Últimas 100 acciones registradas.</p>
+<div class="admin-card mt-5" style="padding:0;overflow:auto"><table class="admin-table"><thead><tr><th>Fecha</th><th>Actor</th><th>Acción</th><th>Objetivo</th></tr></thead><tbody>{rows.map(r => <tr><td class="muted" style="font-size:12px">{new Date(r.log.createdAt).toLocaleString('es-UY')}</td><td>{r.actor}</td><td class="mono">{r.log.action}</td><td class="mono muted">{r.log.targetId.slice(0,13)}…</td></tr>)}</tbody></table></div></AdminLayout>

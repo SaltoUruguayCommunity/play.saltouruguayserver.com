@@ -1,0 +1,29 @@
+---
+import '@/styles/global.css';
+import DocumentHead from '@/components/DocumentHead.astro';
+import { LayoutDashboard, Gamepad2, Server, Trophy, ScrollText, ArrowLeft } from '@lucide/astro';
+import { admin } from '@/lib/security';
+const { title = 'Administración', pending = 0 } = Astro.props as { title?: string; pending?: number };
+const player = Astro.locals.player;
+if (!player || !admin(player)) return Astro.redirect('/404');
+const path = Astro.url.pathname;
+const nav = [
+  { href: '/admin', text: 'Resumen', icon: LayoutDashboard, active: path === '/admin' },
+  { href: '/admin?status=review', text: 'Juegos', icon: Gamepad2, active: path.startsWith('/admin/juegos') || (path === '/admin' && Astro.url.searchParams.get('status') === 'review'), count: pending },
+  { href: '/admin/servidores', text: 'Servidores', icon: Server, active: path.startsWith('/admin/servidores') },
+  { href: '/admin/logros', text: 'Logros', icon: Trophy, active: path.startsWith('/admin/logros') },
+  { href: '/admin/auditoria', text: 'Auditoría', icon: ScrollText, active: path.startsWith('/admin/auditoria') },
+];
+---
+<!doctype html><html lang="es-UY" data-theme="dark"><head><DocumentHead title={title} description="Consola de administración de SaltoPlay de SaltoUruguayServer." /></head>
+<body><a href="#contenido" class="sr-only focus:not-sr-only">Saltar al contenido</a><div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a class="brand" href="/admin" aria-label="SaltoPlay Admin, inicio"><img class="brand-logo" src="/brand/sus.svg" alt="" width="32" height="38" /><span class="brand-lockup"><strong class="brand-name" style="font-size:20px">salto<em>play</em></strong><span class="brand-signature">Admin · SaltoUruguayServer</span></span></a>
+    <nav class="admin-nav" aria-label="Administración">{nav.map(({href, text, icon: Icon, active, count}) => <a href={href} class:list={{active}} aria-current={active ? 'page' : undefined}><Icon /><span>{text}</span>{count ? <span class="count">{count}</span> : null}</a>)}</nav>
+    <div style="margin-top:auto;padding-top:16px"><a href="/" style="display:flex;gap:10px;align-items:center;color:#9a97a8;font-size:12px;padding:8px 10px"><ArrowLeft size={14} />Volver al portal</a></div>
+  </aside>
+  <div class="admin-main">
+    <header class="admin-topbar"><span class="muted" style="font-size:12px">Consola de administración · {player.displayName}</span><a href="/admin?status=review" class="btn btn-secondary" style="padding:8px 14px">Cola de revisión{pending ? ` (${pending})` : ''}</a></header>
+    <main id="contenido" class="admin-content"><slot /></main>
+  </div>
+</div></body></html>

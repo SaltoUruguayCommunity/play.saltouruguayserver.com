@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { games, builds, grants, tokens } from '@/db/schema';
 import { failure, HttpError, json, requirePlayer } from '@/lib/http';
@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ locals, request, cookies }) => { try {
   const previous = data.previousToken && !data.consent ? await db().select({ id: tokens.hash }).from(tokens).where(and(eq(tokens.hash, hash(data.previousToken)), eq(tokens.gameId, game.id), eq(tokens.playerId, player.id), eq(tokens.buildId, data.buildId), eq(tokens.sessionHash, hash(cookie)))).limit(1) : [];
   if (!previous.length) throw new HttpError(409, 'build_changed', 'La versión publicada cambió. Recargá la página para empezar una partida nueva.');
  }
- const [build] = await db().select({ id: builds.id }).from(builds).where(and(eq(builds.id, data.buildId), eq(builds.gameId, game.id), eq(builds.status, 'approved')));
+ const [build] = await db().select({ id: builds.id }).from(builds).where(and(eq(builds.id, data.buildId), eq(builds.gameId, game.id), inArray(builds.status, ['ready', 'review', 'approved'])));
  if (!build) throw new HttpError(409, 'build_unavailable');
  const [grant] = await db().select().from(grants).where(and(eq(grants.gameId, game.id), eq(grants.playerId, player.id)));
  if (!data.consent && (!grant || hostedScopes.some(scope => !grant.scopes.includes(scope)))) throw new HttpError(403, 'consent_required');
