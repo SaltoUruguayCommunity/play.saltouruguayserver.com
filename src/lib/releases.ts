@@ -8,7 +8,8 @@ import { HttpError } from './http';
  * - Si el juego ya está publicado, promover = release en vivo.
  * - Si aún no está publicado, promover = marcar la candidata (activeBuildId)
  *   que se pondrá en vivo cuando el admin apruebe el juego.
- * El admin nunca elige versiones: solo aprueba/suspende el juego.
+ * Un admin nunca elige versiones de juegos ajenos: solo aprueba/suspende el juego.
+ * Un admin que es dueño del juego conserva los permisos de desarrollador sobre ese juego.
  */
 export async function publishVersion(gameId: string, buildId: string, actorId: string, action: 'publish' | 'rollback') {
   return db().transaction(async tx => {

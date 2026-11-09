@@ -24,8 +24,12 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
       return json({ url: runtimeOrigin(gameId) + '/_preview/' + createPreviewToken(gameId, buildId) + '/' + buildId + '/index.html' });
     }
     // Solo el desarrollador dueño elige qué versión está en producción.
-    if (!privileged && game.ownerId !== actor.id) throw new HttpError(404, 'not_found');
-    if (privileged) throw new HttpError(403, 'forbidden', 'La versión en producción la elige el desarrollador.');
+    // Un admin que también es dueño actúa como desarrollador de su propio juego;
+    // un admin que no es dueño no puede elegir la versión.
+    if (game.ownerId !== actor.id) {
+      if (privileged) throw new HttpError(403, 'forbidden', 'La versión en producción la elige el desarrollador.');
+      throw new HttpError(404, 'not_found');
+    }
     if (game.status === 'suspended') throw new HttpError(409, 'game_suspended');
     if (action === 'publish' || action === 'rollback') { await publishVersion(gameId, buildId, actor.id, action); return json({ ok: true }); }
     if (action === 'retry') {
