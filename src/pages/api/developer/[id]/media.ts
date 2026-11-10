@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { games, gameMedia } from '@/db/schema';
+import { games, gameMedia, achievements } from '@/db/schema';
 import { mediaUrl } from '@/lib/runtime';
 import { deleteObject, sourceKey } from '@/lib/object-storage';
 import { processMediaInline } from '@/lib/media-process';
@@ -24,11 +24,16 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
    }
    if (action === 'remove') {
     if (['queued', 'processing'].includes(media.status)) throw new HttpError(409, 'media_processing');
-    await tx.update(games).set({ icon: game.icon === url ? null : game.icon, cover: game.cover === url ? null : game.cover, screenshots: game.screenshots.filter(value => value !== url), updatedAt: new Date() }).where(eq(games.id, gameId));
+    if (media.kind === 'achievement') {
+     await tx.update(achievements).set({ imageId: null, updatedAt: new Date() }).where(eq(achievements.imageId, id));
+    } else {
+     await tx.update(games).set({ icon: game.icon === url ? null : game.icon, cover: game.cover === url ? null : game.cover, screenshots: game.screenshots.filter(value => value !== url), updatedAt: new Date() }).where(eq(games.id, gameId));
+    }
     artifact = media.artifactKey;
     await tx.delete(gameMedia).where(eq(gameMedia.id, id)); return;
    }
    if (media.status !== 'ready') throw new HttpError(409, 'media_not_ready');
+   if (media.kind === 'achievement') throw new HttpError(409, 'invalid_kind', 'Las imágenes de logro se gestionan desde Logros.');
    if (media.kind === 'screenshot' && !game.screenshots.includes(url) && game.screenshots.length >= 8) throw new HttpError(409, 'screenshot_limit', 'Podés mostrar hasta 8 capturas.');
    await tx.update(games).set({ ...(media.kind === 'icon' ? { icon: url } : media.kind === 'banner' ? { cover: url } : { screenshots: [...new Set([...game.screenshots, url])] }), updatedAt: new Date() }).where(eq(games.id, gameId));
   });

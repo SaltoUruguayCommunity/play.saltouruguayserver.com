@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, uniqueIndex, type AnyPgColumn } from 'drizzle-orm/pg-core';
 const dates = () => ({ createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull() });
 export const players = pgTable('players', {
   id: uuid('id').defaultRandom().primaryKey(), subject: text('sus_subject').unique().notNull(),
@@ -16,7 +16,7 @@ export const games = pgTable('games', {
   url: text('url'), icon: text('icon'), screenshots: jsonb('screenshots').$type<string[]>().default([]).notNull(), cover: text('cover'), accent: text('accent').default('violet').notNull(), activeBuildId: uuid('active_build_id'),
   ...dates(),
 });
-export const achievements = pgTable('achievements', { id: uuid('id').defaultRandom().primaryKey(), gameId: uuid('game_id').references(() => games.id, { onDelete: 'cascade' }).notNull(), key: text('key').notNull(), title: text('title').notNull(), description: text('description').notNull(), xp: integer('xp').default(0).notNull(), score: integer('score').default(0).notNull(), verified: boolean('verified').default(false).notNull(), ...dates() }, t => [uniqueIndex('game_achievement_key').on(t.gameId, t.key)]);
+export const achievements = pgTable('achievements', { id: uuid('id').defaultRandom().primaryKey(), gameId: uuid('game_id').references(() => games.id, { onDelete: 'cascade' }).notNull(), key: text('key').notNull(), title: text('title').notNull(), description: text('description').notNull(), xp: integer('xp').default(0).notNull(), score: integer('score').default(0).notNull(), verified: boolean('verified').default(false).notNull(), imageId: uuid('image_id').references((): AnyPgColumn => gameMedia.id, { onDelete: 'set null' }), ...dates() }, t => [uniqueIndex('game_achievement_key').on(t.gameId, t.key)]);
 export const unlocks = pgTable('unlocks', { id: uuid('id').defaultRandom().primaryKey(), playerId: uuid('player_id').references(() => players.id).notNull(), achievementId: uuid('achievement_id').references(() => achievements.id).notNull(), scoreAwarded: integer('score_awarded').default(0).notNull(), createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull() }, t => [uniqueIndex('player_achievement').on(t.playerId, t.achievementId)]);
 export const library = pgTable('library', { id: uuid('id').defaultRandom().primaryKey(), playerId: uuid('player_id').references(() => players.id).notNull(), gameId: uuid('game_id').references(() => games.id).notNull(), ...dates() }, t => [uniqueIndex('player_library_game').on(t.playerId, t.gameId)]);
 export const clients = pgTable('oauth_clients', { id: uuid('id').defaultRandom().primaryKey(), gameId: uuid('game_id').references(() => games.id).notNull(), name: text('name').notNull(), secretHash: text('secret_hash'), redirectUris: jsonb('redirect_uris').$type<string[]>().default([]).notNull(), scopes: jsonb('scopes').$type<string[]>().default([]).notNull(), ...dates() });
@@ -38,7 +38,7 @@ export const communityServers = pgTable('community_servers', {
 
 export const gameMedia = pgTable('game_media', {
  id: uuid('id').defaultRandom().primaryKey(), gameId: uuid('game_id').references(() => games.id).notNull(),
- kind: text('kind', { enum: ['icon', 'banner', 'screenshot'] }).notNull(),
+ kind: text('kind', { enum: ['icon', 'banner', 'screenshot', 'achievement'] }).notNull(), achievementId: uuid('achievement_id').references((): AnyPgColumn => achievements.id, { onDelete: 'cascade' }),
  sourceBytes: integer('source_bytes').notNull(), contentType: text('content_type').notNull(),
  artifactKey: text('artifact_key'), processingToken: text('processing_token'), width: integer('width'), height: integer('height'), bytes: integer('bytes'), alt: text('alt').default('').notNull(),
  status: text('status', { enum: ['awaiting_upload', 'queued', 'processing', 'ready', 'failed'] }).default('awaiting_upload').notNull(), error: text('error'), processingAt: timestamp('processing_at', { withTimezone: true }), ...dates(),

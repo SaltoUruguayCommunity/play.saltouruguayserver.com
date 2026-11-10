@@ -117,7 +117,14 @@
       if (!document.body) { document.addEventListener('DOMContentLoaded', next, { once: true }); return; }
       ensure(); const item = queue.shift();
       const card = document.createElement('section'); card.className = 'card'; card.dataset.tone = item.tone;
-      const icon = document.createElement('span'); icon.className = 'icon'; icon.innerHTML = item.achievement ? trophy : item.tone === 'success' ? check : info;
+      const icon = document.createElement('span'); icon.className = 'icon';
+      if (item.achievement && item.image) {
+        const art = document.createElement('img'); art.alt = ''; art.referrerPolicy = 'no-referrer';
+        art.addEventListener('error', () => { icon.innerHTML = trophy; }, { once: true });
+        art.src = item.image; icon.append(art);
+      } else {
+        icon.innerHTML = item.achievement ? trophy : item.tone === 'success' ? check : info;
+      }
       if (item.welcome) {
         card.dataset.kind = 'welcome';
         icon.textContent = item.initials;
@@ -162,8 +169,10 @@
       const detail = [value.demo === true ? 'Demo · Sin recompensas de cuenta' : '', clean(value.gameTitle, 80), achievement && xp > 0 ? '+' + xp + ' XP' : ''].filter(Boolean).join(' · ');
       let avatar = '';
       try { const url = new URL(value.avatar); if (url.protocol === 'https:') avatar = url.href; } catch { /* Initials remain available without a valid avatar. */ }
+      let image = '';
+      try { const url = new URL(value.image); if (url.protocol === 'https:') image = url.href; } catch { /* The trophy icon remains available without a valid image. */ }
       const initials = Array.from(clean(value.tag || value.displayName, 100)).slice(0, 2).join('').toUpperCase();
-      queue.push({ id, title, message, detail, achievement, welcome, avatar, initials, tone: ['info', 'success', 'error'].includes(value.tone) ? value.tone : 'info', duration }); next(); return id;
+      queue.push({ id, title, message, detail, achievement, welcome, avatar, image, initials, tone: ['info', 'success', 'error'].includes(value.tone) ? value.tone : 'info', duration }); next(); return id;
     }
     return {
       notify: value => enqueue(value, false),

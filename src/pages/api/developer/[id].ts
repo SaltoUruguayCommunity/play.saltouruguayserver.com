@@ -1,17 +1,18 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq, desc } from 'drizzle-orm';
+import { and, eq, desc, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { games, clients, achievements, builds, audit } from '@/db/schema';
+import { games, clients, achievements, builds, audit, unlocks, gameMedia } from '@/db/schema';
 import { failure, formObject, HttpError, json, requirePlayer } from '@/lib/http';
 import { canEditGameMetadata } from '@/lib/game-status';
+import { deleteObject } from '@/lib/object-storage';
 import { hash, scopes, safeWebUrl } from '@/lib/security';
 export const POST: APIRoute = async ({ params, locals, request }) => {
   try {
     const player = requirePlayer(locals.player); const id = z.uuid().parse(params.id);
     const [game] = await db().select().from(games).where(and(eq(games.id, id), eq(games.ownerId, player.id)));
     if (!game) throw new HttpError(404, 'not_found');
-    const form = await formObject(request); const action = z.enum(['update', 'achievement', 'client', 'review']).parse(form.action);
+    const form = await formObject(request); const action = z.enum(['update', 'achievement', 'achievement_update', 'achievement_delete', 'client', 'review']).parse(form.action);
     if (action === 'update') {
       if (!canEditGameMetadata(game.status)) throw new HttpError(409, 'game_locked', 'El juego está suspendido y no puede editarse.');
       const data = z.object({ title: z.string().min(2).max(80), description: z.string().min(20).max(3000), url: z.string().max(1000).optional() }).parse(form);
@@ -19,9 +20,31 @@ export const POST: APIRoute = async ({ params, locals, request }) => {
       await db().update(games).set({ title: data.title, description: data.description, url: game.type === 'external' ? data.url : null, updatedAt: new Date() }).where(eq(games.id, id));
     }
     if (action === 'achievement') {
-      if (game.status !== 'draft') throw new HttpError(409, 'game_locked');
+      if (game.status === 'suspended') throw new HttpError(409, 'game_locked', 'El juego está suspendido y no puede editarse.');
       const data = z.object({ key: z.string().regex(/^[a-z0-9-]{2,80}$/), title: z.string().min(2).max(80), description: z.string().min(3).max(300) }).parse(form);
       const [inserted] = await db().insert(achievements).values({ ...data, gameId: id, xp: 0 }).onConflictDoNothing().returning(); if (!inserted) throw new HttpError(409, 'duplicate_key', 'Esa clave ya existe.');
+    }
+    if (action === 'achievement_update') {
+      if (game.status === 'suspended') throw new HttpError(409, 'game_locked', 'El juego está suspendido y no puede editarse.');
+      const data = z.object({ achievementId: z.uuid(), title: z.string().min(2).max(80), description: z.string().min(3).max(300) }).parse(form);
+      const [updated] = await db().update(achievements).set({ title: data.title, description: data.description, updatedAt: new Date() }).where(and(eq(achievements.id, data.achievementId), eq(achievements.gameId, id))).returning();
+      if (!updated) throw new HttpError(404, 'achievement_not_found');
+      await db().insert(audit).values({ actorId: player.id, action: 'achievement.updated', targetId: data.achievementId });
+    }
+    if (action === 'achievement_delete') {
+      if (game.status === 'suspended') throw new HttpError(409, 'game_locked', 'El juego está suspendido y no puede editarse.');
+      const { achievementId } = z.object({ achievementId: z.uuid() }).parse(form);
+      const [achievement] = await db().select().from(achievements).where(and(eq(achievements.id, achievementId), eq(achievements.gameId, id)));
+      if (!achievement) throw new HttpError(404, 'achievement_not_found');
+      const [{ count }] = await db().select({ count: sql<number>`count(*)::int` }).from(unlocks).where(eq(unlocks.achievementId, achievementId));
+      if (count > 0) throw new HttpError(409, 'achievement_in_use', 'Ese logro ya fue desbloqueado por jugadores; no se puede eliminar.');
+      const mediaRows = await db().select().from(gameMedia).where(eq(gameMedia.achievementId, achievementId));
+      await db().transaction(async tx => {
+        await tx.delete(gameMedia).where(eq(gameMedia.achievementId, achievementId));
+        await tx.delete(achievements).where(eq(achievements.id, achievementId));
+        await tx.insert(audit).values({ actorId: player.id, action: 'achievement.deleted', targetId: achievementId });
+      });
+      for (const media of mediaRows) if (media.artifactKey) await deleteObject(media.artifactKey).catch(() => {});
     }
     if (action === 'client') {
       const data = z.object({ name: z.string().min(2).max(80), redirectUri: z.url(), kind: z.enum(['public', 'confidential']) }).parse(form);

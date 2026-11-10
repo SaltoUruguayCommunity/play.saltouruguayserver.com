@@ -1,15 +1,18 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { games, builds, gameMedia } from '@/db/schema';
+import { games, builds, gameMedia, achievements } from '@/db/schema';
 import { failure, requirePlayer, HttpError, json } from '@/lib/http';
 import { signedUpload, sourceKey, MAX_ZIP_BYTES, MAX_IMAGE_BYTES } from '@/lib/object-storage';
-const input = z.object({ kind: z.enum(['build', 'icon', 'banner', 'screenshot']), size: z.number().int().positive(), contentType: z.string().max(100), version: z.string().trim().min(1).max(40).optional(), notes: z.string().max(2000).default(''), alt: z.string().max(150).default('') });
+const MAX_ACHIEVEMENT_MEDIA = 25;
+const input = z.object({ kind: z.enum(['build', 'icon', 'banner', 'screenshot', 'achievement']), size: z.number().int().positive(), contentType: z.string().max(100), version: z.string().trim().min(1).max(40).optional(), notes: z.string().max(2000).default(''), alt: z.string().max(150).default(''), achievementId: z.uuid().optional() });
 export const POST: APIRoute = async ({ request, locals, params }) => {
  try {
   const actor = requirePlayer(locals.player), gameId = z.uuid().parse(params.id), data = input.parse(await request.json());
   const isBuild = data.kind === 'build';
+  const isAchievement = data.kind === 'achievement';
+  if (isAchievement && !data.achievementId) throw new HttpError(400, 'achievement_required', 'Elegí el logro antes de subir su imagen.');
   if (data.size > (isBuild ? MAX_ZIP_BYTES : MAX_IMAGE_BYTES)) throw new HttpError(413, 'file_too_large');
   if (isBuild ? data.contentType !== 'application/zip' || !data.version : !['image/png', 'image/jpeg', 'image/webp'].includes(data.contentType)) throw new HttpError(400, 'invalid_file_type');
   const id = crypto.randomUUID();
@@ -21,8 +24,14 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
     const existing = await tx.select({ id: builds.id }).from(builds).where(eq(builds.gameId, gameId));
     if (existing.length >= 30) throw new HttpError(429, 'build_limit', 'Límite: 30 versiones por juego.');
     await tx.insert(builds).values({ id, gameId, version: data.version!, notes: data.notes, sourceBytes: data.size });
+   } else if (isAchievement) {
+    const [achievement] = await tx.select({ id: achievements.id }).from(achievements).where(and(eq(achievements.id, data.achievementId!), eq(achievements.gameId, gameId)));
+    if (!achievement) throw new HttpError(404, 'achievement_not_found');
+    const existing = await tx.select({ id: gameMedia.id }).from(gameMedia).where(and(eq(gameMedia.gameId, gameId), eq(gameMedia.kind, 'achievement')));
+    if (existing.length >= MAX_ACHIEVEMENT_MEDIA) throw new HttpError(429, 'achievement_media_limit', 'Límite: 25 imágenes de logro por juego.');
+    await tx.insert(gameMedia).values({ id, gameId, kind: 'achievement', achievementId: achievement.id, sourceBytes: data.size, contentType: data.contentType, alt: data.alt });
    } else {
-    const existing = await tx.select({ id: gameMedia.id }).from(gameMedia).where(eq(gameMedia.gameId, gameId));
+    const existing = await tx.select({ id: gameMedia.id }).from(gameMedia).where(and(eq(gameMedia.gameId, gameId), inArray(gameMedia.kind, ['icon', 'banner', 'screenshot'])));
     if (existing.length >= 40) throw new HttpError(429, 'media_limit', 'Quitá imágenes que ya no uses antes de subir otras.');
     await tx.insert(gameMedia).values({ id, gameId, kind: data.kind as 'icon' | 'banner' | 'screenshot', sourceBytes: data.size, contentType: data.contentType, alt: data.alt });
    }

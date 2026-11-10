@@ -69,7 +69,7 @@ if (host) {
     const response = await fetch('/api/v1' + route[1], { method: route[0], headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(route[0] !== 'GET' ? { body: JSON.stringify(params) } : {}) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || 'request_failed');
     if (method === 'achievements.requestUnlock' && data.newlyUnlocked === true && active && requestGeneration === generation) {
-      try { platformUI?.showAchievement({ id: `achievement:${host!.dataset.gameId}:${String(params.key)}`, title: data.achievement?.title || String(params.key), description: data.achievement?.description, gameTitle: data.gameTitle, xp: data.xp }); } catch { /* The confirmed unlock remains successful if UI is unavailable. */ }
+      try { platformUI?.showAchievement({ id: `achievement:${host!.dataset.gameId}:${String(params.key)}`, title: data.achievement?.title || String(params.key), description: data.achievement?.description, gameTitle: data.gameTitle, xp: data.xp, image: data.achievement?.image }); } catch { /* The confirmed unlock remains successful if UI is unavailable. */ }
     }
     return data;
   }

@@ -1,13 +1,14 @@
 ---
 import AdminLayout from '@/layouts/AdminLayout.astro';
 import { db } from '@/db';
-import { achievements, games } from '@/db/schema';
+import { achievements, games, gameMedia } from '@/db/schema';
+import { mediaUrl } from '@/lib/runtime';
 import { admin } from '@/lib/security';
 import { eq, asc } from 'drizzle-orm';
 if (!Astro.locals.player || !admin(Astro.locals.player)) return Astro.redirect('/404');
 const gameFilter = Astro.url.searchParams.get('game') || '';
 const q = (Astro.url.searchParams.get('q') || '').trim().toLowerCase();
-const rows = await db().select({ achievement: achievements, game: games }).from(achievements).innerJoin(games, eq(games.id, achievements.gameId)).orderBy(asc(games.title), asc(achievements.title));
+const rows = await db().select({ achievement: achievements, game: games, image: gameMedia }).from(achievements).innerJoin(games, eq(games.id, achievements.gameId)).leftJoin(gameMedia, eq(gameMedia.id, achievements.imageId)).orderBy(asc(games.title), asc(achievements.title));
 const gameList = [...new Map(rows.map(r => [r.game.id, r.game.title])).entries()];
 const filtered = rows.filter(r => (!gameFilter || r.game.id === gameFilter) && (!q || r.achievement.title.toLowerCase().includes(q) || r.achievement.key.toLowerCase().includes(q)));
 ---
@@ -15,7 +16,7 @@ const filtered = rows.filter(r => (!gameFilter || r.game.id === gameFilter) && (
 {Astro.url.searchParams.has('saved') && <p class="notice mt-4" role="status">Cambios guardados.</p>}
 <form method="get" class="mt-5 flex flex-wrap gap-2"><select name="game" class="field" style="margin:0;min-width:200px"><option value="">Todos los juegos</option>{gameList.map(([id, title]) => <option value={id} selected={gameFilter===id}>{title}</option>)}</select><input name="q" value={q} placeholder="Buscar logro…" class="field" style="margin:0;flex:1;min-width:160px" /><button class="btn btn-secondary">Filtrar</button></form>
 <div class="admin-card mt-5" style="padding:0;overflow:auto"><table class="admin-table"><thead><tr><th>Juego</th><th>Logro</th><th>SaltoScore</th><th>Verificado</th><th>Configurar</th></tr></thead><tbody>
-{filtered.map(({ achievement: a, game }) => <tr><td>{game.title}</td><td><strong style="color:#fff">{a.title}</strong><div class="muted mono text-[11px]">{a.key}</div><div class="muted text-[11px]">{a.description}</div></td><td class="mono">{a.score}</td><td>{a.verified ? 'Sí' : 'No'}</td><td><form method="post" action="/api/admin/achievements" class="flex flex-wrap items-center gap-2"><input type="hidden" name="action" value="configure" /><input type="hidden" name="achievementId" value={a.id} /><input name="score" type="number" min="0" max="1000" value={a.score} required style="width:80px;background:#0c0c12;border:1px solid #ffffff19;border-radius:7px;color:#fff;padding:8px" aria-label="SaltoScore" /><label class="flex items-center gap-2 text-xs"><input type="checkbox" name="verified" checked={a.verified} />Verificado</label><button class="btn btn-secondary" style="padding:8px 12px">Guardar</button></form>
+{filtered.map(({ achievement: a, game, image }) => <tr><td>{game.title}</td><td><div class="flex items-center gap-3">{image ? <img src={mediaUrl(game.id, image.id, image.artifactKey)} alt="" width="40" height="40" loading="lazy" class="size-10 shrink-0 rounded-lg border border-white/10 object-cover" /> : <span class="size-10 shrink-0 rounded-lg border border-white/10" style="display:grid;place-items:center;color:#8d819f;font-size:16px" aria-hidden="true">★</span>}<div><strong style="color:#fff">{a.title}</strong><div class="muted mono text-[11px]">{a.key}</div><div class="muted text-[11px]">{a.description}</div></div></div></td><td class="mono">{a.score}</td><td>{a.verified ? 'Sí' : 'No'}</td><td><form method="post" action="/api/admin/achievements" class="flex flex-wrap items-center gap-2"><input type="hidden" name="action" value="configure" /><input type="hidden" name="achievementId" value={a.id} /><input name="score" type="number" min="0" max="1000" value={a.score} required style="width:80px;background:#0c0c12;border:1px solid #ffffff19;border-radius:7px;color:#fff;padding:8px" aria-label="SaltoScore" /><label class="flex items-center gap-2 text-xs"><input type="checkbox" name="verified" checked={a.verified} />Verificado</label><button class="btn btn-secondary" style="padding:8px 12px">Guardar</button></form>
 {a.verified && a.score > 0 && game.status === 'published' && <form method="post" action="/api/admin/achievements" class="mt-2 flex gap-2"><input type="hidden" name="action" value="award" /><input type="hidden" name="achievementId" value={a.id} /><input name="tag" required pattern="[a-zA-Z0-9_-]{3,30}" placeholder="SaltoTag" aria-label="Otorgar a SaltoTag" style="width:140px;background:#0c0c12;border:1px solid #ffffff19;border-radius:7px;color:#fff;padding:8px" /><button class="btn btn-primary" style="padding:8px 12px">Otorgar</button></form>}</td></tr>)}
 </tbody></table></div>
 {!filtered.length && <div class="admin-card empty mt-5"><h2>Todavía no hay logros.</h2><p>Los logros de los juegos aparecerán acá.</p></div>}</AdminLayout>

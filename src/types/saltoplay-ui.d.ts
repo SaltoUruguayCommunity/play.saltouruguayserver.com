@@ -14,6 +14,7 @@ export interface SaltoPlayNotification {
   xp?: number;
   demo?: boolean;
   gameTitle?: string;
+  image?: string;
 }
 export interface SaltoPlayUI {
   showWelcome(value: { id?: string; tag?: string; displayName?: string; avatar?: string | null }, options?: { once?: boolean }): string | null;

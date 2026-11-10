@@ -14,7 +14,7 @@ const cleanError = (error: unknown) =>
 export async function processMediaInline(
   gameId: string,
   mediaId: string,
-  kind: 'icon' | 'banner' | 'screenshot',
+  kind: 'icon' | 'banner' | 'screenshot' | 'achievement',
   sourceBytes: number,
 ): Promise<{ status: 'ready' | 'failed'; error?: string }> {
   const artifactId = randomUUID();
@@ -25,12 +25,13 @@ export async function processMediaInline(
     const meta = await input.metadata();
     if (!['png', 'jpeg', 'webp'].includes(meta.format || '') || !meta.width || !meta.height || (meta.pages ?? 1) > 1)
       throw new Error('Usá una imagen PNG, JPG o WebP estática.');
-    if (kind === 'icon' && (meta.width < 128 || meta.height < 128))
-      throw new Error('El icono necesita al menos 128 × 128 píxeles.');
-    if (kind !== 'icon' && (meta.width < 320 || meta.height < 180))
+    const square = kind === 'icon' || kind === 'achievement';
+    if (square && (meta.width < 128 || meta.height < 128))
+      throw new Error(kind === 'icon' ? 'El icono necesita al menos 128 × 128 píxeles.' : 'La imagen necesita al menos 128 × 128 píxeles.');
+    if (!square && (meta.width < 320 || meta.height < 180))
       throw new Error('La imagen necesita al menos 320 × 180 píxeles.');
     const image =
-      kind === 'icon'
+      square
         ? input.rotate().resize(512, 512, { fit: 'cover' })
         : input.rotate().resize({ width: 1920, height: 1080, fit: 'inside', withoutEnlargement: true });
     const { data, info } = await image.webp({ quality: 85 }).toBuffer({ resolveWithObject: true });

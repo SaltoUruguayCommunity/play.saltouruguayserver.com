@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { games, builds, gameMedia } from '@/db/schema';
-import { headObject, sourceKey } from '@/lib/object-storage';
+import { games, builds, gameMedia, achievements, audit } from '@/db/schema';
+import { headObject, sourceKey, deleteObject } from '@/lib/object-storage';
 import { processMediaInline } from '@/lib/media-process';
 import { dispatchBuild } from '@/lib/build-dispatch';
 import { failure, requirePlayer, HttpError, json } from '@/lib/http';
@@ -21,6 +21,18 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
    const stored = await headObject(sourceKey(gameId, id));
    if (stored.bytes !== row.sourceBytes) throw new HttpError(400, 'size_mismatch');
    const result = await processMediaInline(gameId, id, row.kind, row.sourceBytes);
+   if (result.status === 'ready' && row.kind === 'achievement' && row.achievementId) {
+    const previous = await db().transaction(async tx => {
+     const [achievement] = await tx.select().from(achievements).where(and(eq(achievements.id, row.achievementId!), eq(achievements.gameId, gameId))).for('update');
+     if (!achievement) throw new HttpError(404, 'achievement_not_found');
+     const [old] = achievement.imageId ? await tx.select().from(gameMedia).where(eq(gameMedia.id, achievement.imageId)) : [];
+     await tx.update(achievements).set({ imageId: row.id, updatedAt: new Date() }).where(eq(achievements.id, achievement.id));
+     if (old && old.id !== row.id) await tx.delete(gameMedia).where(eq(gameMedia.id, old.id));
+     await tx.insert(audit).values({ actorId: actor.id, action: 'achievement.image_set', targetId: achievement.id });
+     return old ?? null;
+    });
+    if (previous) { if (previous.artifactKey) await deleteObject(previous.artifactKey).catch(() => {}); }
+   }
    return json({ ok: true, status: result.status, ...(result.error ? { error: result.error } : {}) });
   }
   const [row] = await db().select().from(builds).where(and(eq(builds.id, id), eq(builds.gameId, gameId)));

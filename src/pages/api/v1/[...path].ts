@@ -2,10 +2,11 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { achievements, unlocks, saves, clients } from '@/db/schema';
+import { achievements, unlocks, saves, clients, gameMedia } from '@/db/schema';
 import { authenticateGame, scopeCheck } from '@/lib/game-auth';
 import { failure, HttpError, json } from '@/lib/http';
-import { runtimeOrigin } from '@/lib/runtime';
+import { runtimeOrigin, mediaUrl } from '@/lib/runtime';
+const achievementImage = (gameId: string, media: typeof gameMedia.$inferSelect | null) => media ? mediaUrl(gameId, media.id, media.artifactKey) : null;
 import { appUrl } from '@/lib/security';
 import { getPlayerProgress } from '@/lib/player-progress';
 const slotSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/);
@@ -22,16 +23,17 @@ export const ALL: APIRoute = async ({ request, params }) => {
     const path = params.path || '';
     if (path === 'me' && request.method === 'GET') { scopeCheck(token.scopes, 'profile:read'); return json({ id: player.id, displayName: player.displayName, avatar: player.avatar, saltoScore: (await getPlayerProgress(player.id)).score }, 200, headers); }
     if (path === 'me/saltotag' && request.method === 'GET') { scopeCheck(token.scopes, 'saltotag:read'); return json({ id: player.id, tag: player.tag, displayName: player.displayName }, 200, headers); }
-    if (path === 'achievements' && request.method === 'GET') { scopeCheck(token.scopes, 'achievements:read'); const rows = await db().select({ achievement: achievements, unlockedAt: unlocks.createdAt, scoreAwarded: unlocks.scoreAwarded }).from(achievements).leftJoin(unlocks, and(eq(unlocks.achievementId, achievements.id), eq(unlocks.playerId, player.id))).where(eq(achievements.gameId, game.id)); return json(rows.map(r => ({ ...r.achievement, unlockedAt: r.unlockedAt, scoreAwarded: r.scoreAwarded ?? 0 })), 200, headers); }
+    if (path === 'achievements' && request.method === 'GET') { scopeCheck(token.scopes, 'achievements:read'); const rows = await db().select({ achievement: achievements, unlockedAt: unlocks.createdAt, scoreAwarded: unlocks.scoreAwarded, image: gameMedia }).from(achievements).leftJoin(unlocks, and(eq(unlocks.achievementId, achievements.id), eq(unlocks.playerId, player.id))).leftJoin(gameMedia, eq(gameMedia.id, achievements.imageId)).where(eq(achievements.gameId, game.id)); return json(rows.map(r => ({ ...r.achievement, image: achievementImage(game.id, r.image), unlockedAt: r.unlockedAt, scoreAwarded: r.scoreAwarded ?? 0 })), 200, headers); }
     if (path === 'achievements/unlock' && request.method === 'POST') {
       scopeCheck(token.scopes, 'achievements:write');
       const { key } = z.object({ key: z.string().min(1).max(80) }).parse(await request.json());
-      const [achievement] = await db().select().from(achievements).where(and(eq(achievements.gameId, game.id), eq(achievements.key, key)));
-      if (!achievement) throw new HttpError(404, 'achievement_not_found');
+      const [row] = await db().select({ achievement: achievements, image: gameMedia }).from(achievements).leftJoin(gameMedia, eq(gameMedia.id, achievements.imageId)).where(and(eq(achievements.gameId, game.id), eq(achievements.key, key)));
+      if (!row) throw new HttpError(404, 'achievement_not_found');
+      const achievement = row.achievement;
       if (achievement.verified) throw new HttpError(403, 'server_verification_required');
       const rows = await db().insert(unlocks).values({ playerId: player.id, achievementId: achievement.id }).onConflictDoNothing().returning();
       // Client-reported achievements never award global XP.
-      return json({ key, unlocked: true, newlyUnlocked: rows.length > 0, xp: 0, gameTitle: game.title, achievement: { key: achievement.key, title: achievement.title, description: achievement.description } }, 200, headers);
+      return json({ key, unlocked: true, newlyUnlocked: rows.length > 0, xp: 0, gameTitle: game.title, achievement: { key: achievement.key, title: achievement.title, description: achievement.description, image: achievementImage(game.id, row.image) } }, 200, headers);
     }
     if (path.startsWith('saves/')) {
       const slot = slotSchema.parse(path.slice(6));
