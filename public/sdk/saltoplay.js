@@ -1,7 +1,7 @@
-/* SaltoPlay SDK v0.6 — native launch / popup OAuth PKCE / hosted MessageChannel. */
+/* SaltoPlay SDK v0.7 — native launch / popup OAuth PKCE / hosted MessageChannel. */
 (function (global) {
   'use strict';
-  if (global.SaltoPlay?.version === '0.6.0') return;
+  if (global.SaltoPlay?.version === '0.7.0') return;
   // Consume immediately, before init or any asynchronous work. Native credentials
   // stay in memory and never enter the OAuth sessionStorage persistence path.
   const launchFragment = new URLSearchParams(location.hash.slice(1));
@@ -32,7 +32,7 @@
     sessionStorage.removeItem(flowKey(callbackState));
     callbackQuery.delete('code'); callbackQuery.delete('error'); callbackQuery.delete('state');
     history.replaceState(null, '', location.pathname + (callbackQuery.size ? '?' + callbackQuery : '') + location.hash);
-    global.SaltoPlay = { version: '0.6.0', isOAuthCallback: true };
+    global.SaltoPlay = { version: '0.7.0', isOAuthCallback: true };
     if (global.opener) global.close();
     else {
       const message = document.createElement('p');
@@ -331,7 +331,7 @@
           return login();
         }
         if (method === 'auth.logout') { sessionEpoch++; cancelLogin?.(); clearSession(); return; }
-        const routes = { 'player.getProfile': ['GET', '/me'], 'player.getSaltoTag': ['GET', '/me/saltotag'], 'achievements.list': ['GET', '/achievements'], 'achievements.requestUnlock': ['POST', '/achievements/unlock'], 'saves.get': ['GET', '/saves/' + encodeURIComponent(params.slot)], 'saves.set': ['PUT', '/saves/' + encodeURIComponent(params.slot)] };
+        const routes = { 'player.getProfile': ['GET', '/me'], 'player.getSaltoTag': ['GET', '/me/saltotag'], 'achievements.list': ['GET', '/achievements'], 'achievements.requestUnlock': ['POST', '/achievements/unlock'], 'save.get': ['GET', '/save'], 'save.set': ['PUT', '/save'], 'save.delete': ['DELETE', '/save'] };
         const route = routes[method]; if (!route) throw new Error('unsupported_method');
         await ensureToken();
         if (!token) throw Object.assign(new Error('invalid_token'), { code: 'invalid_token' });
@@ -341,7 +341,7 @@
       };
     }
     if (hosted && options.ui) await call('ui.configure', options.ui);
-    const versions = new Map();
+    let saveVersion = null;
     let identityEpoch = 0;
     // Identity comes from the authorized API, never from game-provided greeting text.
     // Missing profile scopes must not prevent a game from initializing.
@@ -371,9 +371,10 @@
           return result;
         },
       },
-      saves: {
-        get: async slot => { const r = await call('saves.get', { slot }); versions.set(slot, r.version); return r.data; },
-        set: async (slot, data) => { if (!versions.has(slot)) { const current = await call('saves.get', { slot }); versions.set(slot, current.version); } const r = await call('saves.set', { slot, data, version: versions.get(slot) }); versions.set(slot, r.version); return r; },
+      save: {
+        get: async () => { const r = await call('save.get', {}); saveVersion = r.version; return r.data; },
+        set: async data => { if (saveVersion === null) { const current = await call('save.get', {}); saveVersion = current.version; } const r = await call('save.set', { data, version: saveVersion }); saveVersion = r.version; return r; },
+        delete: async () => { const r = await call('save.delete', {}); saveVersion = 0; return r; },
       },
       auth: {
         getSession: () => call('session.get'),
@@ -393,5 +394,5 @@
       destroy: () => { identityEpoch++; close(); },
     };
   }
-  global.SaltoPlay = { init, ui, version: '0.6.0', isOAuthCallback: false };
+  global.SaltoPlay = { init, ui, version: '0.7.0', isOAuthCallback: false };
 })(window);

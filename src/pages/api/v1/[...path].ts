@@ -9,7 +9,7 @@ import { runtimeOrigin, mediaUrl } from '@/lib/runtime';
 const achievementImage = (gameId: string, media: typeof gameMedia.$inferSelect | null) => media ? mediaUrl(gameId, media.id, media.artifactKey) : null;
 import { appUrl } from '@/lib/security';
 import { getPlayerProgress } from '@/lib/player-progress';
-const slotSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/);
+import { checkSaveData, MAX_SAVE_BYTES } from '@/lib/saves';
 export const ALL: APIRoute = async ({ request, params }) => {
   const headers: Record<string, string> = { Vary: 'Origin' };
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': request.headers.get('origin') || '', 'Access-Control-Allow-Methods': 'GET, POST, PUT', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, If-Match', 'Access-Control-Expose-Headers': 'ETag', 'Access-Control-Max-Age': '600', Vary: 'Origin' } });
@@ -35,19 +35,20 @@ export const ALL: APIRoute = async ({ request, params }) => {
       // Client-reported achievements never award global XP.
       return json({ key, unlocked: true, newlyUnlocked: rows.length > 0, xp: 0, gameTitle: game.title, achievement: { key: achievement.key, title: achievement.title, description: achievement.description, image: achievementImage(game.id, row.image) } }, 200, headers);
     }
-    if (path.startsWith('saves/')) {
-      const slot = slotSchema.parse(path.slice(6));
-      const where = and(eq(saves.playerId, player.id), eq(saves.gameId, game.id), eq(saves.slot, slot));
-      if (request.method === 'GET') { scopeCheck(token.scopes, 'saves:read'); const [row] = await db().select().from(saves).where(where); if (!row) return json({ data: null, version: 0 }, 200, { ...headers, ETag: '"0"' }); return json({ data: row.data, version: row.version }, 200, { ...headers, ETag: `"${row.version}"` }); }
+    if (path === 'save') {
+      const where = and(eq(saves.playerId, player.id), eq(saves.gameId, game.id));
+      if (request.method === 'GET') { scopeCheck(token.scopes, 'saves:read'); const [row] = await db().select().from(saves).where(where); if (!row) return json({ data: null, version: 0 }, 200, { ...headers, ETag: '"0"' }); return json({ data: row.data, version: row.version, updatedAt: row.updatedAt }, 200, { ...headers, ETag: `"${row.version}"` }); }
       if (request.method === 'PUT') {
-        scopeCheck(token.scopes, 'saves:write'); const body = await request.text(); if (Buffer.byteLength(body) > 64 * 1024) throw new HttpError(413, 'save_too_large');
+        scopeCheck(token.scopes, 'saves:write'); const body = await request.text(); if (Buffer.byteLength(body) > MAX_SAVE_BYTES + 4096) throw new HttpError(413, 'save_too_large', 'El guardado supera 1 MB.');
         const data = z.object({ data: z.unknown(), version: z.number().int().min(0) }).parse(JSON.parse(body));
+        const bytes = checkSaveData(data.data);
         let row;
-        if (data.version === 0) [row] = await db().insert(saves).values({ playerId: player.id, gameId: game.id, slot, data: data.data, version: 1 }).onConflictDoNothing().returning();
-        else [row] = await db().update(saves).set({ data: data.data, version: sql`${saves.version} + 1`, updatedAt: new Date() }).where(and(where, eq(saves.version, data.version))).returning();
-        if (!row) throw new HttpError(409, 'save_conflict', 'El guardado cambió. Volvé a leerlo antes de guardar.');
+        if (data.version === 0) [row] = await db().insert(saves).values({ playerId: player.id, gameId: game.id, data: data.data, bytes, version: 1 }).onConflictDoNothing().returning();
+        else [row] = await db().update(saves).set({ data: data.data, bytes, version: sql`${saves.version} + 1`, updatedAt: new Date() }).where(and(where, eq(saves.version, data.version))).returning();
+        if (!row) throw new HttpError(409, 'save_conflict', 'El guardado cambió. Volvé a leerlo antes de escribir.');
         return json({ version: row.version }, 200, { ...headers, ETag: `"${row.version}"` });
       }
+      if (request.method === 'DELETE') { scopeCheck(token.scopes, 'saves:write'); await db().delete(saves).where(where); return json({ ok: true }, 200, headers); }
     }
     throw new HttpError(404, 'endpoint_not_found');
   } catch (e) { const response = failure(e); Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v)); return response; }

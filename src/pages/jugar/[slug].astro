@@ -23,7 +23,7 @@ if (host) {
   const demo = host.dataset.demo === 'true';
   let port: MessagePort | null = null, token = '', expiresAt = 0, active = false, connecting = false, loaded = false, generation = 0;
   let requests = 0, intervalStart = Date.now();
-  const seen = new Set<string>(); const demoSaves = new Map<string, { data: unknown; version: number }>();
+  const seen = new Set<string>(); let demoSave: { data: unknown; version: number } | null = null;
   const demoAchievements = new Set<string>();
   const platformUI = window.SaltoPlay?.ui;
   const notify = (message: string) => platformUI?.notify(message);
@@ -58,13 +58,13 @@ if (host) {
         if (!already) platformUI?.showAchievement({ id: 'demo:first-star', title: achievement.title, description: achievement.description, gameTitle: 'Órbita', demo: true });
         return { unlocked: true, newlyUnlocked: !already, xp: 0, achievement, gameTitle: 'Órbita', demo: true };
       }
-      if (typeof params.slot !== 'string' || !/^[\w-]{1,64}$/.test(params.slot)) throw new Error('invalid_slot');
-      if (method === 'saves.get') return demoSaves.get(params.slot) || { data: null, version: 0 };
-      if (method === 'saves.set') { const previous = demoSaves.get(params.slot); if (params.version !== (previous?.version || 0)) throw new Error('save_conflict'); const value = { data: params.data, version: (previous?.version || 0) + 1 }; demoSaves.set(params.slot, value); return { version: value.version }; }
+      if (method === 'save.get') return demoSave ?? { data: null, version: 0 };
+      if (method === 'save.set') { const version = typeof params.version === 'number' ? params.version : 0; if (version !== (demoSave?.version ?? 0)) throw new Error('save_conflict'); demoSave = { data: params.data, version: version + 1 }; return { version: demoSave.version }; }
+      if (method === 'save.delete') { demoSave = null; return { ok: true }; }
       throw new Error('unsupported_method');
     }
     if (Date.now() > expiresAt - 30000) await credential();
-    const routes: Record<string, [string, string]> = { 'player.getProfile': ['GET', '/me'], 'player.getSaltoTag': ['GET', '/me/saltotag'], 'achievements.list': ['GET', '/achievements'], 'achievements.requestUnlock': ['POST', '/achievements/unlock'], 'saves.get': ['GET', `/saves/${encodeURIComponent(String(params.slot))}`], 'saves.set': ['PUT', `/saves/${encodeURIComponent(String(params.slot))}`] };
+    const routes: Record<string, [string, string]> = { 'player.getProfile': ['GET', '/me'], 'player.getSaltoTag': ['GET', '/me/saltotag'], 'achievements.list': ['GET', '/achievements'], 'achievements.requestUnlock': ['POST', '/achievements/unlock'], 'save.get': ['GET', '/save'], 'save.set': ['PUT', '/save'], 'save.delete': ['DELETE', '/save'] };
     const route = routes[method]; if (!route) throw new Error('unsupported_method');
     const response = await fetch('/api/v1' + route[1], { method: route[0], headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(route[0] !== 'GET' ? { body: JSON.stringify(params) } : {}) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || 'request_failed');

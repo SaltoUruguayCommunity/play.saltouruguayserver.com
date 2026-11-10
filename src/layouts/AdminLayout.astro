@@ -1,7 +1,7 @@
 ---
 import '@/styles/global.css';
 import DocumentHead from '@/components/DocumentHead.astro';
-import { LayoutDashboard, Gamepad2, Server, Trophy, ScrollText, ArrowLeft } from '@lucide/astro';
+import { LayoutDashboard, Gamepad2, Server, Trophy, ScrollText, ArrowLeft, Database } from '@lucide/astro';
 import { admin } from '@/lib/security';
 const { title = 'Administración', pending = 0 } = Astro.props as { title?: string; pending?: number };
 const player = Astro.locals.player;
@@ -12,6 +12,7 @@ const nav = [
   { href: '/admin?status=review', text: 'Juegos', icon: Gamepad2, active: path.startsWith('/admin/juegos') || (path === '/admin' && Astro.url.searchParams.get('status') === 'review'), count: pending },
   { href: '/admin/servidores', text: 'Servidores', icon: Server, active: path.startsWith('/admin/servidores') },
   { href: '/admin/logros', text: 'Logros', icon: Trophy, active: path.startsWith('/admin/logros') },
+  { href: '/admin/uso', text: 'Uso de datos', icon: Database, active: path.startsWith('/admin/uso') },
   { href: '/admin/auditoria', text: 'Auditoría', icon: ScrollText, active: path.startsWith('/admin/auditoria') },
 ];
 ---

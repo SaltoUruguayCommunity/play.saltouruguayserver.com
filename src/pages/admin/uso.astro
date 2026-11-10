@@ -1,0 +1,18 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import { db } from '@/db';
+import { games, saves } from '@/db/schema';
+import { admin } from '@/lib/security';
+import { eq, desc, sql } from 'drizzle-orm';
+if (!Astro.locals.player || !admin(Astro.locals.player)) return Astro.redirect('/404');
+const rows = await db()
+  .select({ game: games, count: sql<number>`count(*)::int`, bytes: sql<string>`coalesce(sum(${saves.bytes}), 0)::text` })
+  .from(games)
+  .leftJoin(saves, eq(saves.gameId, games.id))
+  .groupBy(games.id)
+  .orderBy(desc(sql`coalesce(sum(${saves.bytes}), 0)`));
+const fmt = (value: string) => { const bytes = Number(value); if (bytes < 1024) return bytes + ' B'; if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / (1024 * 1024)).toFixed(2) + ' MB'; };
+const total = rows.reduce((acc, r) => acc + Number(r.bytes), 0);
+const totalSaves = rows.reduce((acc, r) => acc + r.count, 0);
+---
+<AdminLayout title="Uso de datos"><p class="eyebrow">Admin · Uso de datos</p><h1 class="page-title mt-2">Almacenamiento de guardados</h1><p class="muted mt-2 max-w-2xl text-xs leading-6">Bytes almacenados por juego en guardados de jugadores. El cupo por guardado es de 1 MB; un guardado nuevo de 1 MB completo equivale a un jugador más con cupo lleno.</p><div class="admin-card mt-5 flex flex-wrap gap-6"><div><h2 class="text-sm">Total almacenado</h2><p class="font-display text-2xl text-violet">{fmt(String(total))}</p></div><div><h2 class="text-sm">Guardados activos</h2><p class="font-display text-2xl text-violet">{totalSaves}</p></div></div>{rows.length ? <div class="admin-card mt-5" style="padding:0;overflow:auto"><table class="admin-table"><thead><tr><th>Juego</th><th>Guardados</th><th>Almacenado</th></tr></thead><tbody>{rows.map(({ game, count, bytes }) => <tr><td><a href={`/admin/juegos/${game.id}`} style="font-weight:600;color:#fff">{game.title}</a></td><td class="mono">{count}</td><td class="mono">{fmt(bytes)}</td></tr>)}</tbody></table></div> : <div class="admin-card empty mt-5"><h2>Todavía no hay guardados.</h2><p>Cuando los jugadores empiecen a usar la función, vas a ver acá cuánto ocupa cada juego.</p></div>}</AdminLayout>
